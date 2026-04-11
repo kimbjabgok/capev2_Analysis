@@ -28,11 +28,6 @@
     "RtlFreeHeap",
     "LdrGetProcedureAddress"
   ],
-  "file_paths": [
-    "C:\\Windows\\System32\\",
-    "C:\\Windows\\SysWOW64\\",
-    "C:\\Windows\\Fonts\\"
-  ],
   "registry_keys": [
     "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\",
     "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Nls\\"

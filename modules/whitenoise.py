@@ -10,7 +10,7 @@ def load_filter(path=None) -> dict:
     if p.exists():
         with open(p, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"processes": [], "api_calls": [], "file_paths": [], "registry_keys": []}
+    return {"processes": [], "api_calls": [], "registry_keys": []}
 
 
 def filter_api_calls(calls: list, wn: dict) -> list:
