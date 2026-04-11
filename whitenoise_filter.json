@@ -1,0 +1,41 @@
+{
+  "_comment": "정상 Windows OS 행위 필터 목록. 필요에 따라 자유롭게 수정하세요.",
+  "processes": [
+    "explorer.exe",
+    "svchost.exe",
+    "lsass.exe",
+    "dwm.exe",
+    "taskhostw.exe",
+    "conhost.exe",
+    "ctfmon.exe",
+    "sihost.exe",
+    "fontdrvhost.exe",
+    "spoolsv.exe",
+    "wuauclt.exe"
+  ],
+  "api_calls": [
+    "NtQueryInformationProcess",
+    "NtQuerySystemInformation",
+    "NtQueryObject",
+    "GetSystemTimeAsFileTime",
+    "GetTickCount",
+    "QueryPerformanceCounter",
+    "GetCurrentProcessId",
+    "GetCurrentThreadId",
+    "IsDebuggerPresent",
+    "NtClose",
+    "RtlAllocateHeap",
+    "RtlFreeHeap",
+    "LdrGetProcedureAddress"
+  ],
+  "file_paths": [
+    "C:\\Windows\\System32\\",
+    "C:\\Windows\\SysWOW64\\",
+    "C:\\Windows\\Fonts\\"
+  ],
+  "registry_keys": [
+    "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\",
+    "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Nls\\"
+  ],
+  "signature_names": []
+}
