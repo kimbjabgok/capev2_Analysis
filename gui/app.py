@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from gui.styles import apply_theme, BG, BG2, BG3, FG, ACCENT, FG_DIM, FONT_TITLE, FONT_LABEL, RED, GREEN, YELLOW
-from gui import tab_overview, tab_signatures, tab_attack, tab_behavior, tab_cape, tab_ai
+from gui import tab_overview, tab_signatures, tab_attack, tab_network, tab_behavior, tab_cape, tab_ai
 from modules.parser import ReportParser, load_report
 from modules import signatures as sig_engine, yara_engine, discord_alert, whitenoise, html_export
 
@@ -110,7 +110,7 @@ class App(tk.Tk):
 
         self.frames = {}
         tab_names = ["Overview", "Signatures", "ATT&CK",
-                     "Behavior", "CAPE", "AI 분석"]
+                     "Network", "Behavior", "CAPE", "AI 분석"]
         for name in tab_names:
             f = ttk.Frame(self.nb)
             self.nb.add(f, text=name)
@@ -244,6 +244,9 @@ class App(tk.Tk):
         # ATT&CK
         ttps = parser.get_ttps()
         safe_build("ATT&CK", tab_attack.build, self.frames["ATT&CK"], ttps)
+
+        # Network
+        safe_build("Network", tab_network.build, self.frames["Network"], parser)
 
         # Behavior
         wn = whitenoise.load_filter()
