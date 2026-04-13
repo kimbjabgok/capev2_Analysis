@@ -14,30 +14,46 @@ try:
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     REPORTLAB_AVAILABLE = True
+
+    PAGE_W, PAGE_H = A4
+    MARGIN    = 2 * cm
+    CONTENT_W = PAGE_W - 2 * MARGIN
+
+    # ── Colors ────────────────────────────────────────────────
+    C_BG      = colors.HexColor("#1a1a2e")
+    C_SECTION = colors.HexColor("#0f3460")
+    C_ACCENT  = colors.HexColor("#4a9fd4")
+    C_WHITE   = colors.white
+    C_LIGHT   = colors.HexColor("#f0f4f8")
+    C_ROW_ALT = colors.HexColor("#f8f8f8")
+    C_GRID    = colors.HexColor("#dddddd")
+    C_BODY    = colors.HexColor("#222222")
+    C_DIM     = colors.HexColor("#888888")
+    C_CRIT    = colors.HexColor("#e05252")
+    C_HIGH    = colors.HexColor("#e07050")
+    C_MED     = colors.HexColor("#e0c050")
+    C_LOW     = colors.HexColor("#8888cc")
+    C_GREEN   = colors.HexColor("#4caf50")
+
+    SEV_COLOR = {
+        "critical": C_CRIT, "high": C_HIGH,
+        "medium":   C_MED,  "low":  C_LOW, "info": C_DIM,
+    }
+    VERDICT_COLOR = {"MALICIOUS": C_CRIT, "SUSPICIOUS": C_HIGH, "CLEAN": C_GREEN}
+
+    TABLE_STYLE_BASE = [
+        ("BACKGROUND",    (0, 0), (-1,  0), C_SECTION),
+        ("TEXTCOLOR",     (0, 0), (-1,  0), C_WHITE),
+        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [C_ROW_ALT, C_WHITE]),
+        ("GRID",          (0, 0), (-1, -1), 0.3, C_GRID),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+    ]
+
 except ImportError:
     REPORTLAB_AVAILABLE = False
-
-# ── Colors ────────────────────────────────────────────────────
-C_BG      = colors.HexColor("#1a1a2e")
-C_SECTION = colors.HexColor("#0f3460")
-C_ACCENT  = colors.HexColor("#4a9fd4")
-C_WHITE   = colors.white
-C_LIGHT   = colors.HexColor("#f0f4f8")
-C_ROW_ALT = colors.HexColor("#f8f8f8")
-C_GRID    = colors.HexColor("#dddddd")
-C_BODY    = colors.HexColor("#222222")
-C_DIM     = colors.HexColor("#888888")
-C_CRIT    = colors.HexColor("#e05252")
-C_HIGH    = colors.HexColor("#e07050")
-C_MED     = colors.HexColor("#e0c050")
-C_LOW     = colors.HexColor("#8888cc")
-C_GREEN   = colors.HexColor("#4caf50")
-
-SEV_COLOR = {
-    "critical": C_CRIT, "high": C_HIGH,
-    "medium":   C_MED,  "low":  C_LOW, "info": C_DIM,
-}
-VERDICT_COLOR = {"MALICIOUS": C_CRIT, "SUSPICIOUS": C_HIGH, "CLEAN": C_GREEN}
 
 TECHNIQUE_TACTICS = {
     "T1059": "Execution",        "T1055": "Defense Evasion",
@@ -57,21 +73,6 @@ TECHNIQUE_TACTICS = {
     "T1113": "Collection",       "T1115": "Collection",
 }
 
-PAGE_W, PAGE_H = A4
-MARGIN    = 2 * cm
-CONTENT_W = PAGE_W - 2 * MARGIN
-
-TABLE_STYLE_BASE = [
-    ("BACKGROUND",    (0, 0), (-1,  0), C_SECTION),
-    ("TEXTCOLOR",     (0, 0), (-1,  0), C_WHITE),
-    ("ROWBACKGROUNDS",(0, 1), (-1, -1), [C_ROW_ALT, C_WHITE]),
-    ("GRID",          (0, 0), (-1, -1), 0.3, C_GRID),
-    ("TOPPADDING",    (0, 0), (-1, -1), 4),
-    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ("LEFTPADDING",   (0, 0), (-1, -1), 6),
-    ("VALIGN",        (0, 0), (-1, -1), "TOP"),
-]
-
 
 def _register_fonts():
     import os, platform
@@ -89,7 +90,7 @@ def _register_fonts():
 def _styles(f, fb):
     def ps(name, **kw):
         return ParagraphStyle(name, fontName=f, fontSize=9,
-                              textColor=C_BODY, leading=13, **kw)
+                              textColor=C_BODY, leading=kw.pop('leading', 13), **kw)
     return {
         "title":   ParagraphStyle("title",   fontName=fb, fontSize=22,
                                   textColor=C_WHITE, leading=30, alignment=TA_CENTER),
