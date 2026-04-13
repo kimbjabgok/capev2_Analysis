@@ -24,10 +24,6 @@ def load_config() -> dict:
             pass
     # .env 값으로 빈 키만 채움 (설정창에서 직접 입력한 값이 우선)
     import os
-    if not cfg.get("gemini_api_key"):
-        cfg["gemini_api_key"] = os.environ.get("GEMINI_API_KEY", "")
-    if not cfg.get("claude_api_key"):
-        cfg["claude_api_key"] = os.environ.get("CLAUDE_API_KEY", "")
     if not cfg.get("groq_api_key"):
         cfg["groq_api_key"] = os.environ.get("GROQ_API_KEY", "")
     if not cfg.get("vt_api_key"):
@@ -316,8 +312,8 @@ class App(tk.Tk):
             return var, key
 
         items = [
-            ("VirusTotal API Key",  "vt_api_key",  True),
-            ("Claude API Key",      "ai_api_key",  True),
+            ("VirusTotal API Key",  "vt_api_key",   True),
+            ("Groq API Key",        "groq_api_key", True),
         ]
         vars_ = [row(*it) for it in items]
 
