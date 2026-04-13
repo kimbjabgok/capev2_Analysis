@@ -35,13 +35,18 @@ class ReportParser:
 
     def get_verdict(self) -> dict:
         """score + malware family"""
-        info = self.get_info()
-        score = info.get("score", 0)
+        # malscore (top-level) 우선, 없으면 info.score fallback
+        score = self.raw.get("malscore", self.get_info().get("score", 0))
         cape = self.raw.get("CAPE", {})
         families = []
         for payload in cape.get("payloads", []):
             for tag in payload.get("cape_yara", []):
                 families.append(tag.get("name", ""))
+        # signatures의 families 필드도 수집
+        for sig in self.get_signatures():
+            for fam in sig.get("families", []):
+                if fam:
+                    families.append(fam)
         return {"score": score, "families": list(set(families))}
 
     # ── PE ────────────────────────────────────────────────────
@@ -65,23 +70,38 @@ class ReportParser:
 
     # ── ATT&CK ────────────────────────────────────────────────
     def get_ttps(self) -> list:
+        # signatures 이름 → description 매핑
+        sig_map = {s.get("name", ""): s.get("description", "") for s in self.get_signatures()}
+
         ttps = []
-        for sig in self.get_signatures():
-            for ttp in sig.get("ttp", []):
-                ttps.append({
-                    "technique_id": ttp,
-                    "signature":    sig.get("name", ""),
-                    "description":  sig.get("description", ""),
-                })
-        # deduplicate
         seen = set()
-        result = []
-        for t in ttps:
-            key = t["technique_id"]
-            if key not in seen:
-                seen.add(key)
-                result.append(t)
-        return result
+
+        # 방식 1: top-level ttps 배열 {"signature":..., "ttps":[...]}
+        for entry in self.raw.get("ttps", []):
+            sig_name = entry.get("signature", "")
+            desc = sig_map.get(sig_name, "")
+            for tid in entry.get("ttps", []):
+                if tid not in seen:
+                    seen.add(tid)
+                    ttps.append({
+                        "technique_id": tid,
+                        "signature":    sig_name,
+                        "description":  desc,
+                    })
+
+        # 방식 2: signatures 내부 ttp 키 (이전 CAPEv2 포맷 호환)
+        for sig in self.get_signatures():
+            sig_name = sig.get("name", "")
+            for tid in sig.get("ttp", []):
+                if tid not in seen:
+                    seen.add(tid)
+                    ttps.append({
+                        "technique_id": tid,
+                        "signature":    sig_name,
+                        "description":  sig.get("description", ""),
+                    })
+
+        return ttps
 
     # ── Network ───────────────────────────────────────────────
     def get_network(self) -> dict:
