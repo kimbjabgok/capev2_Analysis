@@ -85,6 +85,28 @@ class ReportParser:
             return list(imports.values())
         return imports
 
+    _SUSPICIOUS_APIS = frozenset({
+        "VirtualAlloc", "VirtualAllocEx", "VirtualProtect", "VirtualProtectEx",
+        "CreateRemoteThread", "NtCreateThreadEx", "WriteProcessMemory", "ReadProcessMemory",
+        "OpenProcess", "NtOpenProcess", "SetWindowsHookEx", "GetAsyncKeyState",
+        "URLDownloadToFile", "InternetOpen", "InternetConnect",
+        "WinExec", "ShellExecute", "ShellExecuteEx",
+        "RegSetValue", "RegCreateKey", "CryptEncrypt", "CryptDecrypt", "CryptGenKey",
+        "IsDebuggerPresent", "CheckRemoteDebuggerPresent",
+        "NtUnmapViewOfSection", "ZwUnmapViewOfSection",
+        "CreateToolhelp32Snapshot", "Process32First", "Process32Next",
+    })
+
+    def get_suspicious_imports(self) -> list:
+        """PE imports 중 의심 API 필터링"""
+        result = []
+        for imp in self.get_pe_imports():
+            hits = [fn.get("name", "") for fn in imp.get("imports", [])
+                    if fn.get("name", "") in self._SUSPICIOUS_APIS]
+            if hits:
+                result.append({"dll": imp.get("dll", ""), "functions": hits})
+        return result
+
     # ── YARA ──────────────────────────────────────────────────
     def get_yara_matches(self) -> list:
         return self.raw.get("target", {}).get("file", {}).get("yara", [])
@@ -188,6 +210,21 @@ class ReportParser:
     def get_network_files(self) -> list:
         return self.get_network().get("files", [])
 
+    def get_network_iocs(self) -> dict:
+        domains = list(dict.fromkeys(
+            d.get("request", "") for d in self.get_dns() if d.get("request")
+        ))
+        urls = list(dict.fromkeys(
+            h.get("uri", "") for h in self.get_http() if h.get("uri")
+        ))
+        ips, seen = [], set()
+        for dns in self.get_dns():
+            for ans in dns.get("answers", []):
+                ip = ans.get("data", "")
+                if ip and ip not in seen:
+                    seen.add(ip); ips.append(ip)
+        return {"domains": domains[:50], "ips": ips[:50], "urls": urls[:50]}
+
     # ── Behavior ──────────────────────────────────────────────
     def get_processes(self) -> list:
         behavior = self.raw.get("behavior", {})
@@ -212,6 +249,36 @@ class ReportParser:
                 })
                 count += 1
         return result
+
+    @staticmethod
+    def _extract_arg(args, *names) -> str:
+        if isinstance(args, list):
+            for arg in args:
+                if isinstance(arg, dict) and arg.get("name", "").lower() in names:
+                    return str(arg.get("pretty_value") or arg.get("value", ""))
+        elif isinstance(args, dict):
+            for name in names:
+                if name in args:
+                    return str(args[name])
+        return ""
+
+    def get_host_iocs(self) -> dict:
+        reg, files, mutexes = [], [], []
+        sr, sf, sm = set(), set(), set()
+        for proc in self.get_processes():
+            for call in proc.get("calls", []):
+                api  = call.get("api", "").lower()
+                args = call.get("arguments", [])
+                if any(k in api for k in ("regsetvalue", "regcreatekey", "regopenkeyex")):
+                    v = self._extract_arg(args, "regkey", "key", "fullname")
+                    if v and v not in sr: sr.add(v); reg.append(v)
+                if any(k in api for k in ("createfile", "writefile", "movefile", "copyfile")):
+                    v = self._extract_arg(args, "filename", "filepath", "newfilepath")
+                    if v and v not in sf: sf.add(v); files.append(v)
+                if any(k in api for k in ("createmutex", "openmutex")):
+                    v = self._extract_arg(args, "mutexname", "name")
+                    if v and v not in sm: sm.add(v); mutexes.append(v)
+        return {"registry": reg[:30], "files": files[:30], "mutexes": mutexes[:30]}
 
     # ── CAPE ──────────────────────────────────────────────────
     def get_cape_payloads(self) -> list:

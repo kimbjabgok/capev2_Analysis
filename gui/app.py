@@ -10,7 +10,7 @@ from pathlib import Path
 from gui.styles import apply_theme, BG, BG2, BG3, FG, ACCENT, FG_DIM, FONT_TITLE, FONT_LABEL, RED, GREEN, YELLOW
 from gui import tab_overview, tab_signatures, tab_attack, tab_behavior, tab_cape, tab_ai
 from modules.parser import ReportParser, load_report
-from modules import signatures as sig_engine, yara_engine, whitenoise, html_export
+from modules import signatures as sig_engine, yara_engine, whitenoise, html_export, pdf_export
 
 CONFIG_PATH = Path(os.environ.get("APPDATA", ".")) / "CAPEv2Analyzer" / "config.json"
 
@@ -96,6 +96,10 @@ class App(tk.Tk):
         self.export_btn = ttk.Button(bar, text="HTML 내보내기",
                                      command=self._export_html, state="disabled")
         self.export_btn.pack(side="right", padx=4, pady=4)
+
+        self.pdf_btn = ttk.Button(bar, text="PDF 내보내기",
+                                  command=self._export_pdf, state="disabled")
+        self.pdf_btn.pack(side="right", padx=4, pady=4)
 
     # ── 노트북 탭 ──────────────────────────────────────────────
     def _build_notebook(self):
@@ -259,11 +263,36 @@ class App(tk.Tk):
         safe_build("AI 분석", tab_ai.build, self.frames["AI 분석"], parser, self.config_data, save_config, _store_ai)
 
         self.export_btn.config(state="normal")
+        self.pdf_btn.config(state="normal")
         if errors:
             self._set_status(f"로드 완료 (일부 탭 오류 {len(errors)}개) — 시그니처 {len(all_sigs)}개")
             print("\n".join(errors))  # 콘솔에 상세 오류 출력
         else:
             self._set_status(f"로드 완료 — 시그니처 {len(all_sigs)}개")
+
+    # ── PDF 내보내기 ───────────────────────────────────────────
+    def _export_pdf(self):
+        if not self.parser:
+            return
+        import webbrowser, os
+        sha = self.parser.get_hashes().get("sha256", "report")[:16]
+        path = filedialog.asksaveasfilename(
+            title="PDF 저장",
+            defaultextension=".pdf",
+            initialfile=f"cape_report_{sha}.pdf",
+            filetypes=[("PDF 파일", "*.pdf"), ("모든 파일", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            ai_text = "\n\n".join(
+                f"## {p}\n{t}" for p, t in self._ai_results.items()
+            )
+            pdf_export.generate(self.parser, self.all_sigs, ai_text, path)
+            webbrowser.open(f"file:///{os.path.abspath(path)}")
+            self._set_status(f"PDF 저장 완료: {path}")
+        except Exception as e:
+            messagebox.showerror("PDF 내보내기 오류", str(e))
 
     # ── HTML 내보내기 ──────────────────────────────────────────
     def _export_html(self):
