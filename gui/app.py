@@ -276,6 +276,8 @@ class App(tk.Tk):
 
                 wn = whitenoise.load_filter()
 
+                parser.set_whitenoise_filter(wn)
+
                 custom_sigs = sig_engine.run_all(data)
                 custom_sigs = whitenoise.filter_signatures(custom_sigs, wn)
                 parser.set_custom_sigs(custom_sigs)

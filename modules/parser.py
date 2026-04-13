@@ -12,10 +12,15 @@ class ReportParser:
     def __init__(self, data: dict):
         self.raw = data
         self._custom_sigs: list = []
+        self._wn_filter: dict = {}
 
     def set_custom_sigs(self, sigs: list):
         """CMR 커스텀 시그니처를 주입 — parser 외부에서 생성된 시그니처를 통합"""
         self._custom_sigs = list(sigs)
+
+    def set_whitenoise_filter(self, wn: dict):
+        """화이트노이즈 필터 주입 — get_host_iocs 등에서 자동 적용"""
+        self._wn_filter = wn
 
     # ── 기본 정보 ──────────────────────────────────────────────
     def get_info(self) -> dict:
@@ -263,6 +268,7 @@ class ReportParser:
         return ""
 
     def get_host_iocs(self) -> dict:
+        from modules.whitenoise import filter_registry_keys
         reg, files, mutexes = [], [], []
         sr, sf, sm = set(), set(), set()
         for proc in self.get_processes():
@@ -278,6 +284,8 @@ class ReportParser:
                 if any(k in api for k in ("createmutex", "openmutex")):
                     v = self._extract_arg(args, "mutexname", "name")
                     if v and v not in sm: sm.add(v); mutexes.append(v)
+        if self._wn_filter:
+            reg = filter_registry_keys(reg, self._wn_filter)
         return {"registry": reg[:30], "files": files[:30], "mutexes": mutexes[:30]}
 
     # ── CAPE ──────────────────────────────────────────────────

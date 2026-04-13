@@ -10,7 +10,7 @@ def load_filter(path=None) -> dict:
     if p.exists():
         with open(p, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"processes": [], "api_calls": [], "registry_keys": []}
+    return {"processes": [], "api_calls": [], "registry_keys": [], "signature_names": []}
 
 
 def filter_api_calls(calls: list, wn: dict) -> list:
@@ -29,3 +29,13 @@ def filter_api_calls(calls: list, wn: dict) -> list:
 def filter_signatures(sigs: list, wn: dict) -> list:
     blocked = {s.lower() for s in wn.get("signature_names", [])}
     return [s for s in sigs if s.get("name", "").lower() not in blocked]
+
+
+def filter_registry_keys(keys: list, wn: dict) -> list:
+    blocked = [p.lower() for p in wn.get("registry_keys", [])]
+    result = []
+    for k in keys:
+        key_lower = k.lower()
+        if not any(key_lower.startswith(b) for b in blocked):
+            result.append(k)
+    return result
