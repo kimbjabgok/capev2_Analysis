@@ -7,19 +7,19 @@ from gui.styles import *
 from modules import ai_analysis
 
 
-def build(parent: ttk.Frame, parser, config: dict, save_config_cb):
+def build(parent: ttk.Frame, parser, config: dict, save_config_cb, store_cb=None):
     for w in parent.winfo_children():
         w.destroy()
 
     nb = ttk.Notebook(parent)
     nb.pack(fill="both", expand=True)
 
-    _make_panel(nb, "Groq",   "groq_api_key",   parser, config)
-    _make_panel(nb, "Gemini", "gemini_api_key", parser, config)
-    _make_panel(nb, "Claude", "claude_api_key", parser, config)
+    _make_panel(nb, "Groq",   "groq_api_key",   parser, config, store_cb)
+    _make_panel(nb, "Gemini", "gemini_api_key", parser, config, store_cb)
+    _make_panel(nb, "Claude", "claude_api_key", parser, config, store_cb)
 
 
-def _make_panel(nb, label: str, key_name: str, parser, config: dict):
+def _make_panel(nb, label: str, key_name: str, parser, config: dict, store_cb=None):
     frame = ttk.Frame(nb)
     nb.add(frame, text=label)
 
@@ -53,6 +53,8 @@ def _make_panel(nb, label: str, key_name: str, parser, config: dict):
             tag = "error" if text.startswith("[오류]") else "body"
             result_text.insert("end", text, tag)
             status_var.set("분석 완료.")
+            if store_cb and not text.startswith("[오류]"):
+                store_cb(label, text)
         except Exception as e:
             result_text.insert("end", f"[오류] {e}", "error")
             status_var.set("분석 실패.")

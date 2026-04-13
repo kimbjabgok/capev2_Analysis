@@ -52,6 +52,7 @@ class App(tk.Tk):
         self.parser      = None
         self.all_sigs    = []
         self.report_path = None
+        self._ai_results = {}  # {provider: text}
 
         self._build_menu()
         self._build_toolbar()
@@ -254,7 +255,10 @@ class App(tk.Tk):
         safe_build("CAPE", tab_cape.build, self.frames["CAPE"], parser, yara_results)
 
         # AI
-        safe_build("AI 분석", tab_ai.build, self.frames["AI 분석"], parser, self.config_data, save_config)
+        self._ai_results = {}
+        def _store_ai(provider, text):
+            self._ai_results[provider] = text
+        safe_build("AI 분석", tab_ai.build, self.frames["AI 분석"], parser, self.config_data, save_config, _store_ai)
 
         self.discord_btn.config(state="normal")
         self.export_btn.config(state="normal")
@@ -298,7 +302,10 @@ class App(tk.Tk):
         if not path:
             return
         try:
-            html_str = html_export.generate(self.parser, self.all_sigs)
+            ai_text = "\n\n".join(
+                f"### {p}\n{t}" for p, t in self._ai_results.items()
+            )
+            html_str = html_export.generate(self.parser, self.all_sigs, ai_text)
             with open(path, "w", encoding="utf-8") as f:
                 f.write(html_str)
             webbrowser.open(f"file:///{os.path.abspath(path)}")
