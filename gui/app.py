@@ -10,7 +10,7 @@ from pathlib import Path
 from gui.styles import apply_theme, BG, BG2, BG3, FG, ACCENT, FG_DIM, FONT_TITLE, FONT_LABEL, RED, GREEN, YELLOW
 from gui import tab_overview, tab_signatures, tab_attack, tab_behavior, tab_cape, tab_ai
 from modules.parser import ReportParser, load_report
-from modules import signatures as sig_engine, yara_engine, discord_alert, whitenoise, html_export
+from modules import signatures as sig_engine, yara_engine, whitenoise, html_export
 
 CONFIG_PATH = Path(os.environ.get("APPDATA", ".")) / "CAPEv2Analyzer" / "config.json"
 
@@ -96,9 +96,6 @@ class App(tk.Tk):
                                    bg=BG2, fg=FG_DIM, font=FONT_LABEL)
         self.path_label.pack(side="left", padx=8)
 
-        self.discord_btn = ttk.Button(bar, text="Discord 알림 전송",
-                                      command=self._send_discord, state="disabled")
-        self.discord_btn.pack(side="right", padx=8, pady=4)
 
         self.export_btn = ttk.Button(bar, text="HTML 내보내기",
                                      command=self._export_html, state="disabled")
@@ -265,30 +262,12 @@ class App(tk.Tk):
             self._ai_results[provider] = text
         safe_build("AI 분석", tab_ai.build, self.frames["AI 분석"], parser, self.config_data, save_config, _store_ai)
 
-        self.discord_btn.config(state="normal")
         self.export_btn.config(state="normal")
         if errors:
             self._set_status(f"로드 완료 (일부 탭 오류 {len(errors)}개) — 시그니처 {len(all_sigs)}개")
             print("\n".join(errors))  # 콘솔에 상세 오류 출력
         else:
             self._set_status(f"로드 완료 — 시그니처 {len(all_sigs)}개")
-
-    # ── Discord 알림 ───────────────────────────────────────────
-    def _send_discord(self):
-        if not self.parser:
-            return
-        webhook = self.config_data.get("discord_webhook", "")
-        if not webhook:
-            messagebox.showwarning("Discord", "설정에서 웹훅 URL을 먼저 입력해주세요.")
-            return
-        summary = self.parser.get_summary_for_ai()
-        result  = discord_alert.send_alert(webhook, summary, self.all_sigs)
-        if result.get("success"):
-            messagebox.showinfo("Discord", f"알림 전송 완료 ({result['count']}개 시그니처)")
-        elif result.get("skipped"):
-            messagebox.showinfo("Discord", "High 이상 시그니처 없음 — 전송하지 않음")
-        else:
-            messagebox.showerror("Discord", str(result.get("error", "알 수 없는 오류")))
 
     # ── HTML 내보내기 ──────────────────────────────────────────
     def _export_html(self):
@@ -337,9 +316,8 @@ class App(tk.Tk):
             return var, key
 
         items = [
-            ("VirusTotal API Key",  "vt_api_key",        True),
-            ("Discord Webhook URL", "discord_webhook",   False),
-            ("Claude API Key",      "ai_api_key",        True),
+            ("VirusTotal API Key",  "vt_api_key",  True),
+            ("Claude API Key",      "ai_api_key",  True),
         ]
         vars_ = [row(*it) for it in items]
 
