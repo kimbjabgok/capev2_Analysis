@@ -86,7 +86,7 @@ def build(parent: ttk.Frame, parser, config: dict, refresh_vt_cb=None):
     def _do_vt_lookup():
         api_key = config.get("vt_api_key", "")
         if not api_key:
-            vt_info_var.set("VirusTotal API 키를 설정 탭에서 입력하세요.")
+            vt_info_var.set("VirusTotal API 키를 도구 메뉴 → 설정에서 입력하세요.")
             return
         vt_info_var.set("조회 중...")
         result = VT.lookup_hash(sha256, api_key)

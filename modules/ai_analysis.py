@@ -2,8 +2,8 @@
 import json
 import requests
 
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
-GEMINI_MODEL = "gemini-1.5-pro"
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GEMINI_MODEL = "gemini-2.0-flash"
 
 SYSTEM_PROMPT = """당신은 악성코드 분석 전문가입니다.
 CAPEv2 샌드박스 분석 결과를 한국어로 분석하여 다음 형식으로 보고서를 작성하세요:
