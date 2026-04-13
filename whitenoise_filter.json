@@ -1,5 +1,6 @@
 {
   "_comment": "정상 Windows OS 행위 필터 목록. 필요에 따라 자유롭게 수정하세요.",
+
   "processes": [
     "explorer.exe",
     "svchost.exe",
@@ -11,12 +12,21 @@
     "sihost.exe",
     "fontdrvhost.exe",
     "spoolsv.exe",
-    "wuauclt.exe"
+    "wuauclt.exe",
+    "smss.exe",
+    "csrss.exe",
+    "wininit.exe",
+    "audiodg.exe",
+    "dashost.exe",
+    "runtimebroker.exe"
   ],
+
   "api_calls": [
     "NtQueryInformationProcess",
     "NtQuerySystemInformation",
     "NtQueryObject",
+    "NtQueryVirtualMemory",
+    "NtQueryAttributesFile",
     "GetSystemTimeAsFileTime",
     "GetTickCount",
     "QueryPerformanceCounter",
@@ -26,11 +36,21 @@
     "NtClose",
     "RtlAllocateHeap",
     "RtlFreeHeap",
-    "LdrGetProcedureAddress"
+    "RtlInitUnicodeString",
+    "LdrGetProcedureAddress",
+    "GetProcessHeap",
+    "GetLastError",
+    "GetCommandLineA",
+    "GetCommandLineW"
   ],
+
   "registry_keys": [
     "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\",
     "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Nls\\"
   ],
-  "signature_names": []
+
+  "signature_names": [
+    "antidbg_windows",
+    "antiemu_wine_reg"
+  ]
 }

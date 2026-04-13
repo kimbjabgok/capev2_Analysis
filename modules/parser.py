@@ -11,6 +11,11 @@ def load_report(path: str) -> dict:
 class ReportParser:
     def __init__(self, data: dict):
         self.raw = data
+        self._custom_sigs: list = []
+
+    def set_custom_sigs(self, sigs: list):
+        """CMR 커스텀 시그니처를 주입 — parser 외부에서 생성된 시그니처를 통합"""
+        self._custom_sigs = list(sigs)
 
     # ── 기본 정보 ──────────────────────────────────────────────
     def get_info(self) -> dict:
@@ -37,6 +42,22 @@ class ReportParser:
         """score + malware family"""
         # malscore (top-level) 우선, 없으면 info.score fallback
         score = self.raw.get("malscore", self.get_info().get("score", 0))
+
+        # 정적 지표 점수 — 동적 분석 유무와 무관하게 항상 합산
+        static = 0
+        sev_pts = {"critical": 3, "high": 2, "medium": 1, "low": 0, "info": 0}
+        for sig in self.get_signatures():
+            sev = sig.get("severity", "")
+            if isinstance(sev, int):
+                sev = self._SEV_MAP.get(sev, "low")
+            static += sev_pts.get(str(sev).lower(), 0)
+        # YARA 매치마다 +2 (최대 +6)
+        static += min(len(self.get_yara_matches()) * 2, 6)
+        # CAPE 추출 config → 악성코드 확정 수준
+        if self.get_cape_configs():
+            static += 3
+        score = min(score + static, 10)
+
         cape = self.raw.get("CAPE", {})
         families = []
         for payload in cape.get("payloads", []):
@@ -78,23 +99,50 @@ class ReportParser:
             sev = s.get("severity")
             if isinstance(sev, int):
                 s["severity"] = self._SEV_MAP.get(sev, "low")
-        return sigs
+        return sigs + self._custom_sigs
 
     # ── ATT&CK ────────────────────────────────────────────────
+
+    # 네트워크/C2 전용 TTP — PE 구조 시그니처와 매핑되면 오탐
+    _NETWORK_TTPS = frozenset({
+        "T1071", "T1095", "T1571", "T1573", "T1008",
+        "T1090", "T1219", "T1102",
+    })
+    # PE 정적 구조 시그니처 이름에 포함되는 키워드
+    _PE_STATIC_HINTS = (
+        "pe_overlay", "pe_anomaly", "pe_header",
+        "pe_section", "pe_import", "pe_corrupt",
+        "contains_pe",
+    )
+
+    def _is_valid_ttp_pair(self, technique_id: str, sig_name: str) -> bool:
+        """알려진 잘못된 TTP↔시그니처 조합을 거른다."""
+        tid_base = technique_id.split(".")[0].upper()
+        sig_lower = sig_name.lower()
+        if tid_base in self._NETWORK_TTPS:
+            if any(hint in sig_lower for hint in self._PE_STATIC_HINTS):
+                return False
+        return True
+
     def get_ttps(self) -> list:
         # signatures 이름 → description 매핑
         sig_map = {s.get("name", ""): s.get("description", "") for s in self.get_signatures()}
 
         ttps = []
-        seen = set()
+        # (technique_id, sig_name) 쌍 기준으로 중복 제거
+        # technique_id 단독 중복 제거는 올바른 매핑을 버리는 버그 원인
+        seen: set = set()
 
         # 방식 1: top-level ttps 배열 {"signature":..., "ttps":[...]}
         for entry in self.raw.get("ttps", []):
             sig_name = entry.get("signature", "")
             desc = sig_map.get(sig_name, "")
             for tid in entry.get("ttps", []):
-                if tid not in seen:
-                    seen.add(tid)
+                if not self._is_valid_ttp_pair(tid, sig_name):
+                    continue
+                key = (tid, sig_name)
+                if key not in seen:
+                    seen.add(key)
                     ttps.append({
                         "technique_id": tid,
                         "signature":    sig_name,
@@ -105,8 +153,11 @@ class ReportParser:
         for sig in self.get_signatures():
             sig_name = sig.get("name", "")
             for tid in sig.get("ttp", []):
-                if tid not in seen:
-                    seen.add(tid)
+                if not self._is_valid_ttp_pair(tid, sig_name):
+                    continue
+                key = (tid, sig_name)
+                if key not in seen:
+                    seen.add(key)
                     ttps.append({
                         "technique_id": tid,
                         "signature":    sig_name,

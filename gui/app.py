@@ -165,17 +165,22 @@ class App(tk.Tk):
                 data   = load_report(path)
                 parser = ReportParser(data)
 
-                # 커스텀 시그니처
-                custom_sigs = sig_engine.run_all(data)
-
                 # YARA
                 yara_results = yara_engine.scan_report_payloads(data)
 
-                # 화이트노이즈 필터
+                # 화이트노이즈 필터를 먼저 로드
                 wn = whitenoise.load_filter()
-                raw_sigs = parser.get_signatures()
-                filtered_sigs = whitenoise.filter_signatures(raw_sigs, wn)
-                all_sigs = filtered_sigs + custom_sigs
+
+                # 커스텀 시그니처도 화이트노이즈 필터 적용 후 parser에 주입
+                # → 나중에 whitenoise_filter.json에 [CMR] 시그니처를 추가해도
+                #   점수 계산 / AI 요약 / ATT&CK 등 parser 내부 모든 로직에 일관 반영
+                custom_sigs = sig_engine.run_all(data)
+                custom_sigs = whitenoise.filter_signatures(custom_sigs, wn)
+                parser.set_custom_sigs(custom_sigs)
+
+                # CAPEv2 원본 시그니처도 화이트노이즈 필터 적용
+                # get_signatures()는 이미 custom_sigs 포함 → 한 번에 필터링
+                all_sigs = whitenoise.filter_signatures(parser.get_signatures(), wn)
 
                 self.report_path = path
                 self.parser      = parser
