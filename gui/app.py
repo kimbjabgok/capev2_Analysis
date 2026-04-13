@@ -91,6 +91,8 @@ class App(tk.Tk):
 
         if initial_file:
             self.after(200, lambda: self._open_file(initial_file))
+        else:
+            self.after(400, self._check_first_run)
 
     # ── 메뉴 ──────────────────────────────────────────────────
     def _build_menu(self):
@@ -453,6 +455,35 @@ class App(tk.Tk):
             self._set_status(f"HTML 저장 완료: {path}")
         except Exception as e:
             messagebox.showerror("내보내기 오류", str(e))
+
+    # ── 첫 실행 감지 ──────────────────────────────────────────
+    def _check_first_run(self):
+        missing = not self.config_data.get("groq_api_key") and \
+                  not self.config_data.get("vt_api_key")
+        if not missing:
+            return
+
+        # 안내 배너 표시
+        bar = tk.Frame(self, bg="#2d2250", height=36)
+        bar.place(relx=0, rely=1.0, anchor="sw", relwidth=1.0)
+
+        tk.Label(bar, text="⚙  API 키가 설정되지 않았습니다. AI 분석 및 VirusTotal 기능을 사용하려면 설정을 완료하세요.",
+                 bg="#2d2250", fg="#cba6f7",
+                 font=("Segoe UI", 9)).pack(side="left", padx=14, pady=8)
+
+        def _open_and_close():
+            bar.destroy()
+            self._open_settings()
+
+        tk.Button(bar, text="지금 설정", command=_open_and_close,
+                  bg="#cba6f7", fg="#1e1e2e",
+                  font=("Segoe UI", 9, "bold"), relief="flat",
+                  padx=10, pady=2, cursor="hand2").pack(side="left", padx=4)
+
+        tk.Button(bar, text="✕", command=bar.destroy,
+                  bg="#2d2250", fg="#6c7086",
+                  font=("Segoe UI", 9), relief="flat",
+                  padx=8, pady=0, cursor="hand2").pack(side="right", padx=8)
 
     # ── 설정 창 ───────────────────────────────────────────────
     def _open_settings(self):

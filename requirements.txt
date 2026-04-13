@@ -4,3 +4,4 @@ tkinterdnd2>=0.3.0
 pyinstaller>=6.0.0
 python-dotenv>=1.0.0
 reportlab>=4.0.0
+pillow>=9.0.0
