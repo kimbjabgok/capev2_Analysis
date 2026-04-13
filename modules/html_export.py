@@ -18,13 +18,6 @@ def generate(parser, all_sigs: list, ai_text: str = "") -> str:
     pe_imps  = parser.get_pe_imports()
     yara_m   = parser.get_yara_matches()
 
-    if score >= 7:
-        badge_color, badge_text = "#e05252", "MALICIOUS"
-    elif score >= 4:
-        badge_color, badge_text = "#e0a050", "SUSPICIOUS"
-    else:
-        badge_color, badge_text = "#50c878", "CLEAN"
-
     SEV_COLOR = {
         "critical": "#e05252", "high": "#e07050",
         "medium": "#e0c050",   "low": "#8888cc", "info": "#888888",
@@ -111,8 +104,6 @@ def generate(parser, all_sigs: list, ai_text: str = "") -> str:
   h2{{font-size:1.1rem;color:#7ec8e3;margin:20px 0 8px}}
   section{{background:#16213e;border-radius:8px;padding:16px;margin-bottom:16px}}
   .badge{{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.8rem;font-weight:bold;color:#1a1a2e}}
-  .verdict{{font-size:1.6rem;font-weight:bold;padding:6px 20px;border-radius:6px;color:#1a1a2e;display:inline-block}}
-  .score{{font-size:1.1rem;margin-left:12px;color:#e0e0e0}}
   table{{width:100%;border-collapse:collapse;font-size:.88rem}}
   th{{background:#0f3460;color:#7ec8e3;text-align:left;padding:6px 10px}}
   td{{padding:5px 10px;border-bottom:1px solid #0f3460;vertical-align:top}}
@@ -128,14 +119,6 @@ def generate(parser, all_sigs: list, ai_text: str = "") -> str:
 <body>
 <h1>CAPEv2 Malware Analysis Report</h1>
 <p class="meta">생성: {now} &nbsp;|&nbsp; {_esc(info.get('id',''))}</p>
-
-<section>
-  <div>
-    <span class="verdict" style="background:{badge_color}">{badge_text}</span>
-    <span class="score">Score: {score} / 10</span>
-    &nbsp; {family_html}
-  </div>
-</section>
 
 <section>
   <h2>File Hashes</h2>
