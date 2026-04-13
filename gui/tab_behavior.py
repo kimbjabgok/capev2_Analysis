@@ -9,6 +9,13 @@ def build(parent: ttk.Frame, api_calls: list):
     for w in parent.winfo_children():
         w.destroy()
 
+    if not api_calls:
+        tk.Label(parent,
+                 text="동적 분석 데이터가 없습니다.\n샌드박스에서 프로세스 행위가 기록되지 않았거나 정적 분석만 수행된 리포트입니다.",
+                 bg=BG, fg=FG_DIM, font=FONT_LABEL,
+                 justify="center").pack(expand=True)
+        return
+
     total = len(api_calls)
     tk.Label(parent, text=f"API Calls — {total}개 (최대 1,000개/프로세스)",
              bg=BG, fg=ACCENT, font=FONT_TITLE).pack(anchor="w", padx=12, pady=6)

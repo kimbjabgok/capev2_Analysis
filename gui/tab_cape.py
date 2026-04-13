@@ -13,6 +13,13 @@ def build(parent: ttk.Frame, parser, yara_results: list):
     payloads = parser.get_cape_payloads()
     configs  = parser.get_cape_configs()
 
+    if not payloads:
+        tk.Label(parent,
+                 text="추출된 페이로드가 없습니다.\n동적 분석이 수행되지 않았거나 CAPE가 페이로드를 덤프하지 못한 리포트입니다.",
+                 bg=BG, fg=FG_DIM, font=FONT_LABEL,
+                 justify="center").pack(expand=True)
+        return
+
     tk.Label(parent, text=f"CAPE Payloads — {len(payloads)}개",
              bg=BG, fg=ACCENT, font=FONT_TITLE).pack(anchor="w", padx=12, pady=8)
 
