@@ -58,7 +58,11 @@ class ReportParser:
         return self.get_pe().get("sections", [])
 
     def get_pe_imports(self) -> list:
-        return self.get_pe().get("imports", [])
+        imports = self.get_pe().get("imports", [])
+        # dict 형태 {"DLL": {"dll":..., "imports":[...]}} → list 변환
+        if isinstance(imports, dict):
+            return list(imports.values())
+        return imports
 
     # ── YARA ──────────────────────────────────────────────────
     def get_yara_matches(self) -> list:

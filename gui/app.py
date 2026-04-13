@@ -24,9 +24,10 @@ def load_config() -> dict:
             pass
     # .env 값으로 빈 키만 채움 (설정창에서 직접 입력한 값이 우선)
     import os
-    if not cfg.get("ai_api_key"):
-        cfg["ai_api_key"] = os.environ.get("GEMINI_API_KEY", "")
-        cfg["ai_provider"] = "gemini"
+    if not cfg.get("gemini_api_key"):
+        cfg["gemini_api_key"] = os.environ.get("GEMINI_API_KEY", "")
+    if not cfg.get("claude_api_key"):
+        cfg["claude_api_key"] = os.environ.get("CLAUDE_API_KEY", "")
     if not cfg.get("vt_api_key"):
         cfg["vt_api_key"] = os.environ.get("VT_API_KEY", "")
     return cfg
