@@ -7,14 +7,19 @@ import os
 import sys
 from pathlib import Path
 
-from gui.styles import apply_theme, BG, BG2, BG3, FG, ACCENT, FG_DIM, FONT_TITLE, FONT_LABEL, RED, GREEN, YELLOW
+from gui.styles import (apply_theme, BG, BG2, BG3, FG, ACCENT, FG_DIM,
+                        FONT_TITLE, FONT_LABEL, RED, GREEN, YELLOW, ORANGE)
 from gui import tab_overview, tab_signatures, tab_attack, tab_behavior, tab_cape, tab_ai
 from modules.parser import ReportParser, load_report
 from modules import signatures as sig_engine, yara_engine, whitenoise, html_export, pdf_export
 
 CONFIG_PATH = Path(os.environ.get("APPDATA", ".")) / "CAPEv2Analyzer" / "config.json"
 
+_DARK_HDR = "#0f0f1a"
+_BORDER   = "#313244"
 
+
+# ── Config helpers ─────────────────────────────────────────
 def load_config() -> dict:
     cfg = {}
     if CONFIG_PATH.exists():
@@ -22,8 +27,6 @@ def load_config() -> dict:
             cfg = json.loads(CONFIG_PATH.read_text("utf-8"))
         except Exception:
             pass
-    # .env 값으로 빈 키만 채움 (설정창에서 직접 입력한 값이 우선)
-    import os
     if not cfg.get("groq_api_key"):
         cfg["groq_api_key"] = os.environ.get("GROQ_API_KEY", "")
     if not cfg.get("vt_api_key"):
@@ -36,22 +39,52 @@ def save_config(cfg: dict):
     CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), "utf-8")
 
 
+# ── Custom button factory ──────────────────────────────────
+def _btn(parent, text, command, bg=BG3, fg=FG,
+         hover_bg=ACCENT, hover_fg=BG,
+         pad_x=14, pad_y=6, state="normal", font=("Segoe UI", 9)):
+    b = tk.Button(
+        parent, text=text, command=command,
+        bg=bg, fg=fg,
+        activebackground=hover_bg, activeforeground=hover_fg,
+        font=font, relief="flat", borderwidth=0,
+        padx=pad_x, pady=pad_y, cursor="hand2", state=state,
+    )
+
+    def _enter(e):
+        if str(b["state"]) != "disabled":
+            b.config(bg=hover_bg, fg=hover_fg)
+
+    def _leave(e):
+        if str(b["state"]) != "disabled":
+            b.config(bg=bg, fg=fg)
+
+    b.bind("<Enter>", _enter)
+    b.bind("<Leave>", _leave)
+    return b
+
+
+# ── Main App ───────────────────────────────────────────────
 class App(tk.Tk):
     def __init__(self, initial_file: str = None):
         super().__init__()
         self.title("CAPEv2 Report Analyzer")
-        self.geometry("1280x800")
-        self.minsize(900, 600)
+        self.geometry("1280x820")
+        self.minsize(960, 640)
         apply_theme(self)
 
-        self.config_data = load_config()
-        self.parser      = None
-        self.all_sigs    = []
-        self.report_path = None
-        self._ai_results = {}  # {provider: text}
+        self.config_data  = load_config()
+        self.parser       = None
+        self.all_sigs     = []
+        self.report_path  = None
+        self._ai_results  = {}
+        self._loading     = False
+        self._loading_dots = 0
 
         self._build_menu()
+        self._build_header()
         self._build_toolbar()
+        self._build_verdict_strip()
         self._build_notebook()
         self._build_statusbar()
         self._setup_dnd()
@@ -61,85 +94,159 @@ class App(tk.Tk):
 
     # ── 메뉴 ──────────────────────────────────────────────────
     def _build_menu(self):
-        menubar = tk.Menu(self, bg=BG2, fg=FG, activebackground=BG3,
-                          activeforeground=ACCENT, relief="flat")
+        menubar = tk.Menu(self, bg=BG2, fg=FG,
+                          activebackground=ACCENT, activeforeground=BG,
+                          relief="flat", borderwidth=0)
         self.config(menu=menubar)
 
         file_menu = tk.Menu(menubar, tearoff=False, bg=BG2, fg=FG,
-                            activebackground=BG3, activeforeground=ACCENT)
+                            activebackground=ACCENT, activeforeground=BG)
         file_menu.add_command(label="리포트 열기  (Ctrl+O)", command=self._browse_file)
         file_menu.add_separator()
         file_menu.add_command(label="종료", command=self.destroy)
         menubar.add_cascade(label="파일", menu=file_menu)
 
         tool_menu = tk.Menu(menubar, tearoff=False, bg=BG2, fg=FG,
-                            activebackground=BG3, activeforeground=ACCENT)
+                            activebackground=ACCENT, activeforeground=BG)
         tool_menu.add_command(label="설정", command=self._open_settings)
         menubar.add_cascade(label="도구", menu=tool_menu)
 
         self.bind("<Control-o>", lambda e: self._browse_file())
 
+    # ── 헤더 바 (브랜딩) ────────────────────────────────────────
+    def _build_header(self):
+        hdr = tk.Frame(self, bg=_DARK_HDR, height=46)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+
+        tk.Label(hdr, text="CAPE", bg=_DARK_HDR, fg=ACCENT,
+                 font=("Segoe UI", 12, "bold")).pack(side="left", padx=(18, 0), pady=10)
+        tk.Label(hdr, text="v2 Report Analyzer", bg=_DARK_HDR, fg=FG_DIM,
+                 font=("Segoe UI", 10)).pack(side="left", padx=(4, 0), pady=10)
+
+        settings_btn = tk.Button(
+            hdr, text="⚙  설정", command=self._open_settings,
+            bg=_DARK_HDR, fg=FG_DIM,
+            activebackground=BG2, activeforeground=FG,
+            font=("Segoe UI", 9), relief="flat", borderwidth=0,
+            padx=14, pady=0, cursor="hand2",
+        )
+        settings_btn.pack(side="right", padx=10)
+        settings_btn.bind("<Enter>", lambda e: settings_btn.config(fg=ACCENT))
+        settings_btn.bind("<Leave>", lambda e: settings_btn.config(fg=FG_DIM))
+
+        tk.Frame(self, bg=_BORDER, height=1).pack(fill="x")
+
     # ── 툴바 ──────────────────────────────────────────────────
     def _build_toolbar(self):
-        bar = tk.Frame(self, bg=BG2, height=40)
+        bar = tk.Frame(self, bg=BG2, height=50)
         bar.pack(fill="x")
         bar.pack_propagate(False)
 
-        ttk.Button(bar, text="리포트 열기", command=self._browse_file).pack(
-            side="left", padx=8, pady=4)
+        open_btn = _btn(bar, "열기", self._browse_file,
+                        bg=ACCENT, fg=_DARK_HDR,
+                        hover_bg=FG, hover_fg=_DARK_HDR,
+                        font=("Segoe UI", 9, "bold"), pad_x=16, pad_y=6)
+        open_btn.pack(side="left", padx=(14, 8), pady=10)
 
-        self.path_label = tk.Label(bar, text="파일을 드래그하거나 열기 버튼을 누르세요.",
-                                   bg=BG2, fg=FG_DIM, font=FONT_LABEL)
-        self.path_label.pack(side="left", padx=8)
+        tk.Frame(bar, bg=_BORDER, width=1).pack(side="left", fill="y", pady=10)
 
+        self.path_label = tk.Label(
+            bar, text="JSON 리포트 파일을 열거나 드래그하세요.",
+            bg=BG2, fg=FG_DIM, font=("Segoe UI", 9),
+        )
+        self.path_label.pack(side="left", padx=14)
 
-        self.export_btn = ttk.Button(bar, text="HTML 내보내기",
-                                     command=self._export_html, state="disabled")
-        self.export_btn.pack(side="right", padx=4, pady=4)
+        self.loading_label = tk.Label(bar, text="", bg=BG2, fg=ACCENT,
+                                      font=("Segoe UI", 9, "italic"))
+        self.loading_label.pack(side="right", padx=10)
 
-        self.pdf_btn = ttk.Button(bar, text="PDF 내보내기",
-                                  command=self._export_pdf, state="disabled")
-        self.pdf_btn.pack(side="right", padx=4, pady=4)
+        self.pdf_btn = _btn(bar, "PDF 내보내기", self._export_pdf,
+                            bg=BG3, fg=FG_DIM,
+                            hover_bg=ACCENT, hover_fg=BG,
+                            state="disabled")
+        self.pdf_btn.pack(side="right", padx=(4, 14), pady=10)
+
+        self.export_btn = _btn(bar, "HTML 내보내기", self._export_html,
+                               bg=BG3, fg=FG_DIM,
+                               hover_bg=ACCENT, hover_fg=BG,
+                               state="disabled")
+        self.export_btn.pack(side="right", padx=4, pady=10)
+
+        tk.Frame(self, bg=_BORDER, height=1).pack(fill="x")
+
+    # ── 판정 배너 ─────────────────────────────────────────────
+    def _build_verdict_strip(self):
+        self._verdict_frame = tk.Frame(self, height=0)
+        self._verdict_frame.pack(fill="x")
+        self._verdict_frame.pack_propagate(False)
+
+    def _show_verdict(self, score: int, label: str, families: list):
+        _colors = {"MALICIOUS": RED, "SUSPICIOUS": ORANGE, "CLEAN": GREEN}
+        _labels = {"MALICIOUS": "MALICIOUS  —  악성", "SUSPICIOUS": "SUSPICIOUS  —  의심", "CLEAN": "CLEAN  —  정상"}
+        bg = _colors.get(label, ACCENT)
+
+        for w in self._verdict_frame.winfo_children():
+            w.destroy()
+        self._verdict_frame.config(height=36, bg=bg)
+
+        fam_str = f"   |   패밀리: {', '.join(families)}" if families else ""
+        tk.Label(
+            self._verdict_frame,
+            text=f"  {_labels.get(label, label)}   |   위협 점수: {score} / 10{fam_str}",
+            bg=bg, fg="#ffffff",
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="left", padx=12, pady=6)
+
+    def _hide_verdict(self):
+        for w in self._verdict_frame.winfo_children():
+            w.destroy()
+        self._verdict_frame.config(height=0)
 
     # ── 노트북 탭 ──────────────────────────────────────────────
     def _build_notebook(self):
         self.nb = ttk.Notebook(self)
-        self.nb.pack(fill="both", expand=True, padx=4, pady=4)
+        self.nb.pack(fill="both", expand=True)
 
         self.frames = {}
         tab_names = ["Overview", "Signatures", "ATT&CK",
                      "Behavior", "CAPE", "AI 분석"]
         for name in tab_names:
             f = ttk.Frame(self.nb)
-            self.nb.add(f, text=name)
+            self.nb.add(f, text=f"  {name}  ")
             self.frames[name] = f
 
-        # 빈 상태 표시
         for name, frame in self.frames.items():
             tk.Label(frame, text="리포트 파일을 열어주세요.",
                      bg=BG, fg=FG_DIM, font=FONT_TITLE).pack(expand=True)
 
     # ── 상태바 ────────────────────────────────────────────────
     def _build_statusbar(self):
-        bar = tk.Frame(self, bg=BG2, height=24)
+        tk.Frame(self, bg=_BORDER, height=1).pack(fill="x", side="bottom")
+        bar = tk.Frame(self, bg=_DARK_HDR, height=24)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
+
         self.status_var = tk.StringVar(value="준비")
         tk.Label(bar, textvariable=self.status_var,
-                 bg=BG2, fg=FG_DIM, font=("Segoe UI", 9)).pack(side="left", padx=8)
+                 bg=_DARK_HDR, fg=FG_DIM, font=("Segoe UI", 8)).pack(side="left", padx=12)
+
+        self.stat_var = tk.StringVar(value="")
+        tk.Label(bar, textvariable=self.stat_var,
+                 bg=_DARK_HDR, fg=FG_DIM, font=("Segoe UI", 8)).pack(side="right", padx=12)
 
     def _set_status(self, msg: str):
         self.status_var.set(msg)
         self.update_idletasks()
 
-    # ── Drag & Drop ───────────────────────────────────────────
+    # ── DnD ──────────────────────────────────────────────────
     def _setup_dnd(self):
         try:
             from tkinterdnd2 import DND_FILES
             self.drop_target_register(DND_FILES)
             self.dnd_bind("<<Drop>>", self._on_drop)
         except ImportError:
-            pass  # tkinterdnd2 없으면 DnD 비활성화
+            pass
 
     def _on_drop(self, event):
         path = event.data.strip("{}")
@@ -156,27 +263,23 @@ class App(tk.Tk):
             self._open_file(path)
 
     def _open_file(self, path: str):
+        self._hide_verdict()
         self._set_status(f"로딩 중: {path}")
+        self._start_loading()
+
         def _load():
             try:
                 data   = load_report(path)
                 parser = ReportParser(data)
 
-                # YARA
                 yara_results = yara_engine.scan_report_payloads(data)
 
-                # 화이트노이즈 필터를 먼저 로드
                 wn = whitenoise.load_filter()
 
-                # 커스텀 시그니처도 화이트노이즈 필터 적용 후 parser에 주입
-                # → 나중에 whitenoise_filter.json에 [CMR] 시그니처를 추가해도
-                #   점수 계산 / AI 요약 / ATT&CK 등 parser 내부 모든 로직에 일관 반영
                 custom_sigs = sig_engine.run_all(data)
                 custom_sigs = whitenoise.filter_signatures(custom_sigs, wn)
                 parser.set_custom_sigs(custom_sigs)
 
-                # CAPEv2 원본 시그니처도 화이트노이즈 필터 적용
-                # get_signatures()는 이미 custom_sigs 포함 → 한 번에 필터링
                 all_sigs = whitenoise.filter_signatures(parser.get_signatures(), wn)
 
                 self.report_path = path
@@ -189,13 +292,43 @@ class App(tk.Tk):
             except Exception as e:
                 self.after(0, lambda: messagebox.showerror("오류", str(e)))
                 self.after(0, lambda: self._set_status("로드 실패"))
+                self.after(0, self._stop_loading)
 
         threading.Thread(target=_load, daemon=True).start()
 
+    # ── 로딩 애니메이션 ─────────────────────────────────────────
+    def _start_loading(self):
+        self._loading = True
+        self._loading_dots = 0
+        self._animate_loading()
+
+    def _animate_loading(self):
+        if not self._loading:
+            return
+        self.loading_label.config(text="분석 중" + "." * (self._loading_dots % 4))
+        self._loading_dots += 1
+        self.after(400, self._animate_loading)
+
+    def _stop_loading(self):
+        self._loading = False
+        self.loading_label.config(text="")
+
+    # ── 탭 데이터 채우기 ─────────────────────────────────────────
     def _populate_tabs(self, parser: ReportParser, all_sigs: list, yara_results: list):
+        self._stop_loading()
+
         name = Path(self.report_path).name
-        self.path_label.config(text=name, fg=ACCENT)
+        self.path_label.config(text=f"  {name}", fg=FG)
         self.title(f"CAPEv2 Report Analyzer — {name}")
+
+        # Verdict 배너
+        verdict  = parser.get_verdict()
+        score    = verdict["score"]
+        families = verdict["families"]
+        if   score >= 7: v_label = "MALICIOUS"
+        elif score >= 4: v_label = "SUSPICIOUS"
+        else:            v_label = "CLEAN"
+        self._show_verdict(score, v_label, families)
 
         # Scrollable wrapper
         def scrollable(parent):
@@ -206,14 +339,11 @@ class App(tk.Tk):
             canvas.pack(side="left", fill="both", expand=True)
             inner  = ttk.Frame(canvas)
             win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
-            def _on_resize(e):
-                canvas.itemconfig(win_id, width=e.width)
-            canvas.bind("<Configure>", _on_resize)
+            canvas.bind("<Configure>", lambda e: canvas.itemconfig(win_id, width=e.width))
             inner.bind("<Configure>", lambda e: canvas.configure(
                 scrollregion=canvas.bbox("all")))
-            def _on_mousewheel(e):
-                canvas.yview_scroll(int(-1*(e.delta/120)), "units")
-            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<MouseWheel>",
+                            lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
             return inner
 
         errors = []
@@ -225,13 +355,16 @@ class App(tk.Tk):
                 import traceback
                 errors.append(f"[{tab_name}] {e}\n{traceback.format_exc()}")
                 f = self.frames[tab_name]
-                for w in f.winfo_children(): w.destroy()
+                for w in f.winfo_children():
+                    w.destroy()
                 tk.Label(f, text=f"[오류] {e}", bg=BG, fg=RED,
-                         font=FONT_LABEL, wraplength=800, justify="left").pack(padx=12, pady=12, anchor="w")
+                         font=FONT_LABEL, wraplength=800,
+                         justify="left").pack(padx=12, pady=12, anchor="w")
 
         # Overview
         f = self.frames["Overview"]
-        for w in f.winfo_children(): w.destroy()
+        for w in f.winfo_children():
+            w.destroy()
         try:
             inner = scrollable(f)
             tab_overview.build(inner, parser, self.config_data)
@@ -241,40 +374,39 @@ class App(tk.Tk):
             tk.Label(f, text=f"[오류] {e}", bg=BG, fg=RED,
                      font=FONT_LABEL, wraplength=800).pack(padx=12, pady=12, anchor="w")
 
-        # Signatures
         safe_build("Signatures", tab_signatures.build, self.frames["Signatures"], all_sigs)
 
-        # ATT&CK
         ttps = parser.get_ttps()
         safe_build("ATT&CK", tab_attack.build, self.frames["ATT&CK"], ttps)
 
-        # Behavior
         wn = whitenoise.load_filter()
         api_calls = whitenoise.filter_api_calls(parser.get_api_calls(), wn)
         safe_build("Behavior", tab_behavior.build, self.frames["Behavior"], api_calls)
 
-        # CAPE
         safe_build("CAPE", tab_cape.build, self.frames["CAPE"], parser, yara_results)
 
-        # AI
         self._ai_results = {}
         def _store_ai(provider, text):
             self._ai_results[provider] = text
-        safe_build("AI 분석", tab_ai.build, self.frames["AI 분석"], parser, self.config_data, save_config, _store_ai)
+        safe_build("AI 분석", tab_ai.build, self.frames["AI 분석"],
+                   parser, self.config_data, save_config, _store_ai)
 
-        self.export_btn.config(state="normal")
-        self.pdf_btn.config(state="normal")
+        # 내보내기 버튼 활성화
+        self.export_btn.config(state="normal", fg=FG, bg=BG3)
+        self.pdf_btn.config(state="normal", fg=FG, bg=BG3)
+
+        self.stat_var.set(f"시그니처 {len(all_sigs)}개  |  점수 {score}/10")
         if errors:
-            self._set_status(f"로드 완료 (일부 탭 오류 {len(errors)}개) — 시그니처 {len(all_sigs)}개")
-            print("\n".join(errors))  # 콘솔에 상세 오류 출력
+            self._set_status(f"로드 완료 (탭 오류 {len(errors)}개)")
+            print("\n".join(errors))
         else:
-            self._set_status(f"로드 완료 — 시그니처 {len(all_sigs)}개")
+            self._set_status(f"로드 완료 — {name}")
 
     # ── PDF 내보내기 ───────────────────────────────────────────
     def _export_pdf(self):
         if not self.parser:
             return
-        import webbrowser, os
+        import webbrowser
         sha = self.parser.get_hashes().get("sha256", "report")[:16]
         path = filedialog.asksaveasfilename(
             title="PDF 저장",
@@ -298,14 +430,12 @@ class App(tk.Tk):
     def _export_html(self):
         if not self.parser:
             return
-        from tkinter import filedialog
-        import webbrowser, os
+        import webbrowser
         sha = self.parser.get_hashes().get("sha256", "report")[:16]
-        default_name = f"cape_report_{sha}.html"
         path = filedialog.asksaveasfilename(
             title="HTML 저장",
             defaultextension=".html",
-            initialfile=default_name,
+            initialfile=f"cape_report_{sha}.html",
             filetypes=[("HTML 파일", "*.html"), ("모든 파일", "*.*")],
         )
         if not path:
@@ -326,31 +456,58 @@ class App(tk.Tk):
     def _open_settings(self):
         win = tk.Toplevel(self)
         win.title("설정")
-        win.geometry("520x320")
+        win.geometry("500x260")
         win.configure(bg=BG)
         win.resizable(False, False)
+        win.grab_set()
+        win.transient(self)
 
-        def row(label, key, show=False):
-            fr = ttk.Frame(win)
-            fr.pack(fill="x", padx=16, pady=6)
-            tk.Label(fr, text=label, bg=BG, fg=FG, font=FONT_LABEL,
-                     width=20, anchor="w").pack(side="left")
+        # 헤더
+        hdr = tk.Frame(win, bg=BG2, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        tk.Label(hdr, text="설정", bg=BG2, fg=FG,
+                 font=("Segoe UI", 11, "bold")).pack(side="left", padx=18, pady=14)
+        tk.Frame(win, bg=_BORDER, height=1).pack(fill="x")
+
+        # 입력 영역
+        body = tk.Frame(win, bg=BG)
+        body.pack(fill="both", expand=True, padx=24, pady=20)
+
+        entries = []
+
+        def row(label_text, key, show=False):
+            fr = tk.Frame(body, bg=BG)
+            fr.pack(fill="x", pady=7)
+            tk.Label(fr, text=label_text, bg=BG, fg=FG_DIM,
+                     font=("Segoe UI", 9), width=22, anchor="w").pack(side="left")
             var = tk.StringVar(value=self.config_data.get(key, ""))
-            ent = ttk.Entry(fr, textvariable=var, width=36, show="*" if show else "")
+            ent = ttk.Entry(fr, textvariable=var, width=32,
+                            show="*" if show else "")
             ent.pack(side="left", fill="x", expand=True)
-            return var, key
+            entries.append((var, key))
 
-        items = [
-            ("VirusTotal API Key",  "vt_api_key",   True),
-            ("Groq API Key",        "groq_api_key", True),
-        ]
-        vars_ = [row(*it) for it in items]
+        row("VirusTotal API Key", "vt_api_key",   show=True)
+        row("Groq API Key",       "groq_api_key", show=True)
+
+        # 하단 버튼 바
+        tk.Frame(win, bg=_BORDER, height=1).pack(fill="x")
+        btn_bar = tk.Frame(win, bg=BG2, height=50)
+        btn_bar.pack(fill="x")
+        btn_bar.pack_propagate(False)
 
         def _save():
-            for var, key in vars_:
+            for var, key in entries:
                 self.config_data[key] = var.get().strip()
             save_config(self.config_data)
             messagebox.showinfo("설정", "저장되었습니다.", parent=win)
             win.destroy()
 
-        ttk.Button(win, text="저장", command=_save).pack(pady=12)
+        save_btn = _btn(btn_bar, "저장", _save,
+                        bg=ACCENT, fg=_DARK_HDR,
+                        hover_bg=FG, hover_fg=_DARK_HDR,
+                        font=("Segoe UI", 9, "bold"), pad_x=18, pad_y=6)
+        save_btn.pack(side="right", padx=16, pady=10)
+
+        cancel_btn = _btn(btn_bar, "취소", win.destroy, pad_x=14, pad_y=6)
+        cancel_btn.pack(side="right", padx=4, pady=10)
