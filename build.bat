@@ -2,51 +2,20 @@
 echo ===== CAPEv2 Report Analyzer Build =====
 echo.
 
-REM 가상환경 활성화 (있으면)
 if exist venv\Scripts\activate.bat (
     call venv\Scripts\activate.bat
 )
 
-REM 의존성 설치
 pip install -r requirements.txt
 
 echo.
 echo [*] PyInstaller 빌드 시작...
-
-pyinstaller ^
-  --onefile ^
-  --windowed ^
-  --name "CAPEv2_Analyzer" ^
-  --add-data "yara_rules;yara_rules" ^
-  --add-data "whitenoise_filter.json;." ^
-  --hidden-import tkinterdnd2 ^
-  --hidden-import yara ^
-  --hidden-import PIL ^
-  --hidden-import PIL.Image ^
-  --hidden-import reportlab ^
-  --hidden-import reportlab.lib ^
-  --hidden-import reportlab.lib.pagesizes ^
-  --hidden-import reportlab.lib.colors ^
-  --hidden-import reportlab.lib.units ^
-  --hidden-import reportlab.lib.styles ^
-  --hidden-import reportlab.lib.enums ^
-  --hidden-import reportlab.platypus ^
-  --hidden-import reportlab.platypus.tables ^
-  --hidden-import reportlab.pdfbase ^
-  --hidden-import reportlab.pdfbase.pdfmetrics ^
-  --hidden-import reportlab.pdfbase.ttfonts ^
-  --hidden-import requests ^
-  --hidden-import json ^
-  --exclude-module dotenv ^
-  --exclude-module _tkinter ^
-  --collect-submodules reportlab ^
-  --collect-submodules tkinterdnd2 ^
-  main.py
+pyinstaller CAPEv2_Analyzer.spec --clean --noconfirm
 
 echo.
 if exist dist\CAPEv2_Analyzer.exe (
     echo [OK] 빌드 완료: dist\CAPEv2_Analyzer.exe
 ) else (
-    echo [FAIL] 빌드 실패 -- 위 오류 메시지 확인
+    echo [FAIL] 빌드 실패 - 위 오류 메시지 확인
 )
 pause
