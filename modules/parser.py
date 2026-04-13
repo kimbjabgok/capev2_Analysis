@@ -65,8 +65,16 @@ class ReportParser:
         return self.raw.get("target", {}).get("file", {}).get("yara", [])
 
     # ── Signatures ────────────────────────────────────────────
+    _SEV_MAP = {1: "low", 2: "medium", 3: "high", 4: "critical", 5: "critical"}
+
     def get_signatures(self) -> list:
-        return self.raw.get("signatures", [])
+        sigs = self.raw.get("signatures", [])
+        # severity가 int로 오는 경우 문자열로 변환
+        for s in sigs:
+            sev = s.get("severity")
+            if isinstance(sev, int):
+                s["severity"] = self._SEV_MAP.get(sev, "low")
+        return sigs
 
     # ── ATT&CK ────────────────────────────────────────────────
     def get_ttps(self) -> list:

@@ -124,9 +124,9 @@ def build(parent: ttk.Frame, parser, config: dict, refresh_vt_cb=None):
             tv.insert("", "end", values=(
                 s.get("name", ""),
                 s.get("virtual_size", ""),
-                hex(s.get("virtual_address", 0)),
-                s.get("size_of_raw_data", ""),
-                f"{s.get('entropy', 0):.2f}",
+                s.get("virtual_address", ""),
+                s.get("size_of_data", s.get("size_of_raw_data", "")),
+                s.get("entropy", ""),
             ))
 
     # ── PE Imports ─────────────────────────────────────────────
