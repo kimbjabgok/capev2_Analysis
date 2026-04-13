@@ -14,8 +14,9 @@ def build(parent: ttk.Frame, parser, config: dict, save_config_cb):
     nb = ttk.Notebook(parent)
     nb.pack(fill="both", expand=True)
 
+    _make_panel(nb, "Groq",   "groq_api_key",   parser, config)
     _make_panel(nb, "Gemini", "gemini_api_key", parser, config)
-    _make_panel(nb, "Claude", "claude_api_key",  parser, config)
+    _make_panel(nb, "Claude", "claude_api_key", parser, config)
 
 
 def _make_panel(nb, label: str, key_name: str, parser, config: dict):
@@ -45,6 +46,8 @@ def _make_panel(nb, label: str, key_name: str, parser, config: dict):
         try:
             if label == "Gemini":
                 text = ai_analysis.analyze_gemini(summary, api_key)
+            elif label == "Groq":
+                text = ai_analysis.analyze_groq(summary, api_key)
             else:
                 text = ai_analysis.analyze_claude(summary, api_key)
             tag = "error" if text.startswith("[오류]") else "body"

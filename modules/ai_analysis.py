@@ -86,7 +86,39 @@ def analyze_gemini(summary: dict, api_key: str) -> str:
     return "[오류] 재시도 횟수 초과"
 
 
+# ── Groq ──────────────────────────────────────────────────────
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
+def analyze_groq(summary: dict, api_key: str) -> str:
+    if not api_key:
+        return "[오류] Groq API 키가 없습니다."
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type":  "application/json",
+    }
+    body = {
+        "model": GROQ_MODEL,
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user",   "content": _build_user_message(summary)},
+        ],
+    }
+    try:
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers, json=body, timeout=60
+        )
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"]
+        return f"[오류] HTTP {r.status_code}: {r.text[:300]}"
+    except Exception as e:
+        return f"[오류] {e}"
+
+
 def analyze(summary: dict, provider: str, api_key: str) -> str:
     if provider.lower() == "gemini":
         return analyze_gemini(summary, api_key)
+    if provider.lower() == "groq":
+        return analyze_groq(summary, api_key)
     return analyze_claude(summary, api_key)
