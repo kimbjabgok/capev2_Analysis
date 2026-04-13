@@ -10,7 +10,7 @@ from pathlib import Path
 from gui.styles import apply_theme, BG, BG2, BG3, FG, ACCENT, FG_DIM, FONT_TITLE, FONT_LABEL, RED, GREEN, YELLOW
 from gui import tab_overview, tab_signatures, tab_attack, tab_behavior, tab_cape, tab_ai
 from modules.parser import ReportParser, load_report
-from modules import signatures as sig_engine, yara_engine, discord_alert, whitenoise
+from modules import signatures as sig_engine, yara_engine, discord_alert, whitenoise, html_export
 
 CONFIG_PATH = Path(os.environ.get("APPDATA", ".")) / "CAPEv2Analyzer" / "config.json"
 
@@ -98,6 +98,10 @@ class App(tk.Tk):
         self.discord_btn = ttk.Button(bar, text="Discord 알림 전송",
                                       command=self._send_discord, state="disabled")
         self.discord_btn.pack(side="right", padx=8, pady=4)
+
+        self.export_btn = ttk.Button(bar, text="HTML 내보내기",
+                                     command=self._export_html, state="disabled")
+        self.export_btn.pack(side="right", padx=4, pady=4)
 
     # ── 노트북 탭 ──────────────────────────────────────────────
     def _build_notebook(self):
@@ -253,6 +257,7 @@ class App(tk.Tk):
         safe_build("AI 분석", tab_ai.build, self.frames["AI 분석"], parser, self.config_data, save_config)
 
         self.discord_btn.config(state="normal")
+        self.export_btn.config(state="normal")
         if errors:
             self._set_status(f"로드 완료 (일부 탭 오류 {len(errors)}개) — 시그니처 {len(all_sigs)}개")
             print("\n".join(errors))  # 콘솔에 상세 오류 출력
@@ -275,6 +280,31 @@ class App(tk.Tk):
             messagebox.showinfo("Discord", "High 이상 시그니처 없음 — 전송하지 않음")
         else:
             messagebox.showerror("Discord", str(result.get("error", "알 수 없는 오류")))
+
+    # ── HTML 내보내기 ──────────────────────────────────────────
+    def _export_html(self):
+        if not self.parser:
+            return
+        from tkinter import filedialog
+        import webbrowser, os
+        sha = self.parser.get_hashes().get("sha256", "report")[:16]
+        default_name = f"cape_report_{sha}.html"
+        path = filedialog.asksaveasfilename(
+            title="HTML 저장",
+            defaultextension=".html",
+            initialfile=default_name,
+            filetypes=[("HTML 파일", "*.html"), ("모든 파일", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            html_str = html_export.generate(self.parser, self.all_sigs)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(html_str)
+            webbrowser.open(f"file:///{os.path.abspath(path)}")
+            self._set_status(f"HTML 저장 완료: {path}")
+        except Exception as e:
+            messagebox.showerror("내보내기 오류", str(e))
 
     # ── 설정 창 ───────────────────────────────────────────────
     def _open_settings(self):
