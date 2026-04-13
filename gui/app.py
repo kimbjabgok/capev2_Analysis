@@ -16,12 +16,20 @@ CONFIG_PATH = Path(os.environ.get("APPDATA", ".")) / "CAPEv2Analyzer" / "config.
 
 
 def load_config() -> dict:
+    cfg = {}
     if CONFIG_PATH.exists():
         try:
-            return json.loads(CONFIG_PATH.read_text("utf-8"))
+            cfg = json.loads(CONFIG_PATH.read_text("utf-8"))
         except Exception:
             pass
-    return {}
+    # .env 값으로 빈 키만 채움 (설정창에서 직접 입력한 값이 우선)
+    import os
+    if not cfg.get("ai_api_key"):
+        cfg["ai_api_key"] = os.environ.get("GEMINI_API_KEY", "")
+        cfg["ai_provider"] = "gemini"
+    if not cfg.get("vt_api_key"):
+        cfg["vt_api_key"] = os.environ.get("VT_API_KEY", "")
+    return cfg
 
 
 def save_config(cfg: dict):
