@@ -3,7 +3,7 @@ import json
 import requests
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.0-flash-lite"
 
 SYSTEM_PROMPT = """당신은 악성코드 분석 전문가입니다.
 CAPEv2 샌드박스 분석 결과를 한국어로 분석하여 다음 형식으로 보고서를 작성하세요:
@@ -64,18 +64,26 @@ def analyze_gemini(summary: dict, api_key: str) -> str:
         "contents": [{
             "parts": [{"text": SYSTEM_PROMPT + "\n\n" + _build_user_message(summary)}]
         }],
-        "generationConfig": {"maxOutputTokens": 2048},
+        "generationConfig": {"maxOutputTokens": 1024},
     }
-    try:
-        r = requests.post(url, json=body, timeout=60)
-        if r.status_code == 200:
-            candidates = r.json().get("candidates", [])
-            if candidates:
-                return candidates[0]["content"]["parts"][0]["text"]
-            return "[오류] 응답 없음"
-        return f"[오류] HTTP {r.status_code}: {r.text[:300]}"
-    except Exception as e:
-        return f"[오류] {e}"
+    import time
+    for attempt in range(3):
+        try:
+            r = requests.post(url, json=body, timeout=60)
+            if r.status_code == 200:
+                candidates = r.json().get("candidates", [])
+                if candidates:
+                    return candidates[0]["content"]["parts"][0]["text"]
+                return "[오류] 응답 없음"
+            if r.status_code == 429:
+                if attempt < 2:
+                    time.sleep(10 * (attempt + 1))
+                    continue
+                return f"[오류] Gemini 쿼터 초과 (429) — 잠시 후 다시 시도하거나 Google AI Studio에서 사용량을 확인하세요."
+            return f"[오류] HTTP {r.status_code}: {r.text[:300]}"
+        except Exception as e:
+            return f"[오류] {e}"
+    return "[오류] 재시도 횟수 초과"
 
 
 def analyze(summary: dict, provider: str, api_key: str) -> str:
