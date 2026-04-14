@@ -184,7 +184,7 @@ class App(tk.Tk):
 
         self.frames = {}
         tab_names = ["Overview", "Signatures", "ATT&CK",
-                     "Behavior", "CAPE", "AI 분석"]
+                     "Network", "Behavior", "CAPE", "AI 분석"]
         for name in tab_names:
             f = ttk.Frame(self.nb)
             self.nb.add(f, text=f"  {name}  ")
@@ -354,6 +354,8 @@ class App(tk.Tk):
 
         ttps = parser.get_ttps()
         safe_build("ATT&CK", tabs.build_attack, self.frames["ATT&CK"], ttps)
+
+        safe_build("Network", tabs.build_network, self.frames["Network"], parser)
 
         wn = analysis.load_filter()
         api_calls = analysis.filter_api_calls(parser.get_api_calls(), wn)
