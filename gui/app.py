@@ -130,12 +130,6 @@ class App(tk.Tk):
                                       font=("Segoe UI", 9, "italic"))
         self.loading_label.pack(side="right", padx=10)
 
-        self.pdf_btn = _btn(bar, "PDF 내보내기", self._export_pdf,
-                            bg=BG3, fg=FG_DIM,
-                            hover_bg=ACCENT, hover_fg=BG,
-                            state="disabled")
-        self.pdf_btn.pack(side="right", padx=(4, 14), pady=10)
-
         self.export_btn = _btn(bar, "HTML 내보내기", self._export_html,
                                bg=BG3, fg=FG_DIM,
                                hover_bg=ACCENT, hover_fg=BG,
@@ -371,7 +365,6 @@ class App(tk.Tk):
 
         # 내보내기 버튼 활성화
         self.export_btn.config(state="normal", fg=FG, bg=BG3)
-        self.pdf_btn.config(state="normal", fg=FG, bg=BG3)
 
         self.stat_var.set(f"시그니처 {len(all_sigs)}개  |  점수 {score}/10")
         if errors:
@@ -379,30 +372,6 @@ class App(tk.Tk):
             print("\n".join(errors))
         else:
             self._set_status(f"로드 완료 — {name}")
-
-    # ── PDF 내보내기 ───────────────────────────────────────────
-    def _export_pdf(self):
-        if not self.parser:
-            return
-        import webbrowser
-        sha = self.parser.get_hashes().get("sha256", "report")[:16]
-        path = filedialog.asksaveasfilename(
-            title="PDF 저장",
-            defaultextension=".pdf",
-            initialfile=f"cape_report_{sha}.pdf",
-            filetypes=[("PDF 파일", "*.pdf"), ("모든 파일", "*.*")],
-        )
-        if not path:
-            return
-        try:
-            ai_text = "\n\n".join(
-                f"## {p}\n{t}" for p, t in self._ai_results.items()
-            )
-            export.generate_pdf(self.parser, self.all_sigs, ai_text, path)
-            webbrowser.open(f"file:///{os.path.abspath(path)}")
-            self._set_status(f"PDF 저장 완료: {path}")
-        except Exception as e:
-            messagebox.showerror("PDF 내보내기 오류", str(e))
 
     # ── HTML 내보내기 ──────────────────────────────────────────
     def _export_html(self):
