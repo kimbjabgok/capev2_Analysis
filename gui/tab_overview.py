@@ -43,6 +43,84 @@ def build(parent: ttk.Frame, parser, config: dict, refresh_vt_cb=None):
 
     ttk.Separator(parent, orient="horizontal").pack(fill="x", padx=12, pady=6)
 
+    # ── 위협 요약 카드 (행동 태그 + 주요 TTP) ──────────────────────
+    _BEHAVIOR_TAGS = {
+        "antidebug":   "안티 디버깅",  "antiav":      "안티 AV",
+        "antivm":      "안티 VM",      "ransomware":  "랜섬웨어",
+        "injection":   "프로세스 인젝션", "c2":        "C2 통신",
+        "network":     "네트워크 활동", "persistence": "지속성",
+        "dropper":     "드로퍼",       "downloader":  "다운로더",
+        "keylogger":   "키로거",       "spyware":     "스파이웨어",
+        "infostealer": "정보 탈취",    "banker":      "뱅킹 악성코드",
+        "rootkit":     "루트킷",       "bootkit":     "부트킷",
+        "exploit":     "익스플로잇",   "shellcode":   "셸코드",
+        "packer":      "패커",         "obfuscation": "난독화",
+        "cryptominer": "크립토마이너", "backdoor":    "백도어",
+        "rat":         "원격 제어(RAT)", "worm":      "웜",
+        "trojan":      "트로이목마",   "generic":     "일반 악성코드",
+    }
+    _TTP_DESCS = {
+        "T1027": "난독화/패킹",         "T1055": "프로세스 인젝션",
+        "T1003": "자격증명 덤핑",        "T1021": "원격 서비스",
+        "T1059": "커맨드 인터프리터",    "T1082": "시스템 정보 수집",
+        "T1083": "파일/디렉터리 탐색",   "T1105": "원격 도구 이전",
+        "T1112": "레지스트리 수정",      "T1140": "파일 디코딩",
+        "T1202": "간접 커맨드 실행",     "T1204": "사용자 실행",
+        "T1218": "시스템 바이너리 실행", "T1219": "원격 접근 SW",
+        "T1486": "데이터 암호화(랜섬웨어)", "T1490": "백업/복구 방해",
+        "T1497": "샌드박스 탐지",        "T1518": "보안 SW 탐지",
+        "T1547": "자동 실행",            "T1548": "권한 상승",
+        "T1562": "방어 무력화",          "T1564": "아티팩트 숨기기",
+        "T1566": "피싱",                 "T1574": "DLL 하이재킹",
+        "T1620": "반사적 코드 로딩",     "T1622": "디버거 탐지",
+        "T1005": "로컬 데이터 수집",
+    }
+
+    summary_lf = tk.LabelFrame(parent, text="위협 요약",
+                                bg=BG, fg=ACCENT, font=FONT_LABEL,
+                                relief="flat", bd=1, highlightbackground=BG3)
+    summary_lf.pack(fill="x", padx=12, pady=4)
+
+    # 행동 태그 필 배지
+    seen_tags: list = []
+    for sig in parser.get_signatures():
+        tag = _BEHAVIOR_TAGS.get(sig.get("category", "").lower())
+        if tag and tag not in seen_tags:
+            seen_tags.append(tag)
+
+    if seen_tags:
+        tag_row = tk.Frame(summary_lf, bg=BG)
+        tag_row.pack(fill="x", padx=8, pady=(6, 2))
+        tk.Label(tag_row, text="행동 태그:", bg=BG, fg=FG_DIM,
+                 font=FONT_LABEL).pack(side="left")
+        for tag in seen_tags[:8]:
+            tk.Label(tag_row, text=f" {tag} ",
+                     bg=BG3, fg=ACCENT, font=("Segoe UI", 9),
+                     relief="flat", padx=6, pady=2).pack(side="left", padx=3)
+
+    # 주요 TTP 목록
+    ttps = parser.get_ttps()
+    if ttps:
+        tk.Label(summary_lf, text="주요 TTP:", bg=BG, fg=FG_DIM,
+                 font=FONT_LABEL).pack(anchor="w", padx=8, pady=(4, 0))
+        seen_ids: set = set()
+        ttp_count = 0
+        for ttp in ttps:
+            tid = ttp.get("technique_id", "")
+            tid_base = tid.split(".")[0]
+            if tid_base in seen_ids or ttp_count >= 6:
+                continue
+            seen_ids.add(tid_base)
+            desc = _TTP_DESCS.get(tid_base, ttp.get("description", ""))
+            ttp_row = tk.Frame(summary_lf, bg=BG)
+            ttp_row.pack(fill="x", padx=8, pady=1)
+            tk.Label(ttp_row, text=f"  • {tid}", bg=BG, fg=YELLOW,
+                     font=FONT_MONO, width=12, anchor="w").pack(side="left")
+            tk.Label(ttp_row, text=desc, bg=BG, fg=FG,
+                     font=FONT_LABEL).pack(side="left", padx=4)
+            ttp_count += 1
+        tk.Frame(summary_lf, bg=BG, height=4).pack()
+
     # ── 해시 (클릭 복사) ───────────────────────────────────────
     hash_lf = tk.LabelFrame(parent, text="File Hashes",
                              bg=BG, fg=ACCENT, font=FONT_LABEL,
