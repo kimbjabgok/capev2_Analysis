@@ -42,6 +42,6 @@ def build(parent: ttk.Frame, ttps: list):
             url = MITRE_BASE + tid.replace(".", "/")
             webbrowser.open(url)
 
-    tv.bind("<Double-1>", _open_mitre)
-    tk.Label(parent, text="※ 더블클릭으로 MITRE 페이지 열기",
+    tv.bind("<ButtonRelease-1>", _open_mitre)
+    tk.Label(parent, text="※ Technique ID 클릭으로 MITRE ATT&CK 페이지 열기",
              bg=BG, fg=FG_DIM, font=FONT_LABEL).pack(anchor="w", padx=12, pady=4)
