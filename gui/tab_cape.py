@@ -46,6 +46,58 @@ def build(parent: ttk.Frame, parser, yara_results: list):
             has_cfg,
         ))
 
+    # ── 선택한 페이로드 해시 (클릭 복사) ──────────────────────────
+    hash_lf = tk.LabelFrame(parent, text="선택한 페이로드 해시",
+                             bg=BG, fg=ACCENT, font=FONT_LABEL,
+                             relief="flat", bd=1, highlightbackground=BG3)
+    hash_lf.pack(fill="x", padx=12, pady=(0, 4))
+
+    hint_lbl = tk.Label(hash_lf, text="위 목록에서 페이로드를 선택하면 해시를 표시합니다.",
+                        bg=BG, fg=FG_DIM, font=FONT_LABEL)
+    hint_lbl.pack(padx=8, pady=6)
+
+    def _copy(val: str):
+        parent.clipboard_clear()
+        parent.clipboard_append(val)
+        parent.update()
+
+    def _on_select(event):
+        sel = tv.selection()
+        if not sel:
+            return
+        sha256 = tv.item(sel[0], "values")[0]
+        payload = next((p for p in payloads if p.get("sha256", "") == sha256), None)
+        if not payload:
+            return
+
+        for w in hash_lf.winfo_children():
+            w.destroy()
+
+        hash_keys = [
+            ("md5",    "MD5   "),
+            ("sha1",   "SHA1  "),
+            ("sha256", "SHA256"),
+            ("sha512", "SHA512"),
+        ]
+        for key, label in hash_keys:
+            val = payload.get(key, "")
+            if not val:
+                continue
+            row = ttk.Frame(hash_lf)
+            row.pack(fill="x", padx=6, pady=1)
+            tk.Label(row, text=label, bg=BG, fg=FG_DIM,
+                     font=FONT_MONO, width=8, anchor="w").pack(side="left")
+            lbl = tk.Label(row, text=val, bg=BG, fg=FG,
+                           font=FONT_MONO, cursor="hand2", anchor="w")
+            lbl.pack(side="left", fill="x", expand=True)
+            lbl.bind("<Button-1>", lambda e, v=val: _copy(v))
+            lbl.bind("<Enter>",    lambda e, l=lbl: l.config(fg=ACCENT))
+            lbl.bind("<Leave>",    lambda e, l=lbl: l.config(fg=FG))
+            tk.Label(row, text="[copy]", bg=BG, fg=FG_DIM,
+                     font=FONT_MONO, cursor="hand2").pack(side="left", padx=4)
+
+    tv.bind("<<TreeviewSelect>>", _on_select)
+
     # ── 악성코드 설정값 ────────────────────────────────────────
     if configs:
         ttk.Separator(parent, orient="horizontal").pack(fill="x", padx=12, pady=8)
