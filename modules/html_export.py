@@ -315,7 +315,9 @@ def generate(parser, all_sigs: list, ai_text: str = "") -> str:
 </li>"""
 
     summary_badges = " ".join(
-        f'<span class="badge bg-{SEV_BADGE.get(s,"secondary)}">{s.upper()}: {c}</span>'
+        '<span class="badge bg-{}">{}: {}</span>'.format(
+            SEV_BADGE.get(s, "secondary"), s.upper(), c
+        )
         for s, c in sig_counts.items() if c > 0
     )
 
