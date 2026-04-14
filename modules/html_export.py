@@ -1,7 +1,8 @@
-"""CAPEv2 분석 결과 → HTML 리포트 생성 (5-section layout)"""
+"""CAPEv2 분석 결과 → Bootstrap 5 Darkly HTML 리포트"""
 import html
 from datetime import datetime
 
+# ── 상수 ──────────────────────────────────────────────────────
 TECHNIQUE_TACTICS = {
     "T1059": "Execution",        "T1055": "Defense Evasion",
     "T1547": "Persistence",      "T1053": "Persistence",
@@ -18,16 +19,40 @@ TECHNIQUE_TACTICS = {
     "T1008": "Command & Control","T1219": "Command & Control",
     "T1102": "Command & Control","T1056": "Collection",
     "T1113": "Collection",       "T1115": "Collection",
+    "T1486": "Impact",           "T1490": "Impact",
+    "T1497": "Defense Evasion",  "T1518": "Discovery",
+    "T1548": "Privilege Escalation", "T1562": "Defense Evasion",
+    "T1564": "Defense Evasion",  "T1574": "Defense Evasion",
+    "T1620": "Defense Evasion",  "T1622": "Defense Evasion",
+    "T1005": "Collection",
 }
 
-SEV_COLOR = {
-    "critical": "#e05252", "high": "#e07050",
-    "medium":   "#e0c050", "low":  "#8888cc", "info": "#888888",
+SEV_BADGE = {
+    "critical": "danger",
+    "high":     "warning",
+    "medium":   "info",
+    "low":      "success",
+    "info":     "secondary",
 }
-VERDICT_COLOR = {
-    "MALICIOUS":  "#e05252",
-    "SUSPICIOUS": "#e07050",
-    "CLEAN":      "#4caf50",
+
+SEV_LIST = {
+    "critical": "list-group-item-danger",
+    "high":     "list-group-item-warning",
+    "medium":   "list-group-item-primary",
+    "low":      "list-group-item-success",
+    "info":     "list-group-item-secondary",
+}
+
+VERDICT_BADGE = {
+    "MALICIOUS":  "danger",
+    "SUSPICIOUS": "warning",
+    "CLEAN":      "success",
+}
+
+VERDICT_KO = {
+    "MALICIOUS":  "악성",
+    "SUSPICIOUS": "의심",
+    "CLEAN":      "정상",
 }
 
 
@@ -35,14 +60,8 @@ def _e(v) -> str:
     return html.escape(str(v)) if v is not None else ""
 
 
-def _kv_rows(pairs) -> str:
-    return "".join(
-        f"<tr><td class='kv-key'>{_e(k)}</td><td class='mono'>{_e(v)}</td></tr>"
-        for k, v in pairs
-    )
-
-
 def generate(parser, all_sigs: list, ai_text: str = "") -> str:
+    # ── 데이터 수집 ──────────────────────────────────────────────
     verdict  = parser.get_verdict()
     hashes   = parser.get_hashes()
     info     = parser.get_info()
@@ -55,226 +74,410 @@ def generate(parser, all_sigs: list, ai_text: str = "") -> str:
     elif score >= 4: label = "SUSPICIOUS"
     else:            label = "CLEAN"
 
-    vcolor = VERDICT_COLOR[label]
+    vbadge = VERDICT_BADGE[label]
+    vko    = VERDICT_KO[label]
 
-    # ── Page 1: Executive Summary ─────────────────────────────
-    family_html = (
-        " ".join(f"<span class='badge family'>{_e(f)}</span>" for f in families)
-        if families else "—"
-    )
+    sha256   = hashes.get("sha256", "")
+    filename = _e(fi.get("name", info.get("id", "—")))
 
-    page1 = f"""
-    <section class="page">
-      <div class="cover-header">
-        <h1>MALWARE ANALYSIS REPORT</h1>
-      </div>
-      <div class="meta-row">
-        <table class="kv-table"><tbody>
-          <tr><td class='kv-key'>분석 일시</td><td>{_e(now)}</td></tr>
-          <tr><td class='kv-key'>Report ID</td><td class='mono'>{_e(info.get('id','—'))}</td></tr>
-        </tbody></table>
-      </div>
-      <div class="verdict-box" style="background:{vcolor}">
-        {_e(label)}&nbsp;&nbsp;—&nbsp;&nbsp;Score: {_e(score)} / 10
-      </div>
-      <table class="kv-table"><tbody>
-        <tr><td class='kv-key'>파일명</td><td class='mono'>{_e(fi.get('name','—'))}</td></tr>
-        <tr><td class='kv-key'>SHA256</td><td class='mono'>{_e(hashes.get('sha256','—'))}</td></tr>
-        <tr><td class='kv-key'>악성코드 패밀리</td><td>{family_html}</td></tr>
-      </tbody></table>
-    </section>"""
+    # ── Navbar ────────────────────────────────────────────────
+    navbar = f"""
+<nav class="navbar navbar-dark bg-dark border-bottom border-secondary px-3 py-2">
+  <div class="d-flex align-items-center gap-3">
+    <span class="navbar-brand fw-bold mb-0">
+      <i class="fas fa-bug text-danger me-2"></i>CAPE Report Analyzer
+    </span>
+    <span class="text-muted font-monospace small">{filename}</span>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <span class="badge bg-secondary">Score: {_e(score)}/10</span>
+    <span class="badge bg-{vbadge} fs-6 px-3">{_e(label)} — {_e(vko)}</span>
+    <span class="text-muted small">{_e(now)}</span>
+  </div>
+</nav>"""
 
-    # ── Page 2: File Information & IOC ────────────────────────
-    hash_rows = _kv_rows([(k.upper(), v) for k, v in hashes.items() if v])
+    # ── 탐지 패밀리 배지 ────────────────────────────────────────
+    if families:
+        fam_badges = " ".join(
+            f'<span class="badge bg-danger fs-6 px-3 py-2">{_e(f)}</span>'
+            for f in families
+        )
+        detection_card = f"""
+<div class="card mb-3">
+  <div class="card-header fw-bold"><i class="fas fa-shield-virus me-2 text-danger"></i>Detections</div>
+  <div class="card-body text-center py-3">{fam_badges}</div>
+</div>"""
+    else:
+        detection_card = ""
 
+    # ── 탭 네비게이션 ─────────────────────────────────────────
+    tabs_nav = """
+<ul class="nav nav-tabs" id="mainTab" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="tab-overview" data-bs-toggle="tab" href="#pane-overview" role="tab">
+      <i class="fas fa-info-circle me-1"></i>Overview
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="tab-sigs" data-bs-toggle="tab" href="#pane-sigs" role="tab">
+      <i class="fas fa-exclamation-triangle me-1"></i>Signatures
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="tab-network" data-bs-toggle="tab" href="#pane-network" role="tab">
+      <i class="fas fa-network-wired me-1"></i>Network
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="tab-attack" data-bs-toggle="tab" href="#pane-attack" role="tab">
+      <i class="fas fa-crosshairs me-1"></i>ATT&amp;CK
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="tab-ai" data-bs-toggle="tab" href="#pane-ai" role="tab">
+      <i class="fas fa-robot me-1"></i>AI 분석
+    </a>
+  </li>
+</ul>"""
+
+    # ── Overview 탭 ───────────────────────────────────────────
+
+    # 분석 요약
+    analysis_rows = "".join([
+        f"<dt class='col-sm-3 text-muted'>분석 ID</dt><dd class='col-sm-9 font-monospace'>{_e(info.get('id','—'))}</dd>",
+        f"<dt class='col-sm-3 text-muted'>분석 일시</dt><dd class='col-sm-9'>{_e(now)}</dd>",
+        f"<dt class='col-sm-3 text-muted'>분석 시간</dt><dd class='col-sm-9'>{_e(info.get('duration','—'))} 초</dd>",
+        f"<dt class='col-sm-3 text-muted'>패키지</dt><dd class='col-sm-9'>{_e(info.get('package','—'))}</dd>",
+    ])
+
+    # 파일 정보 + 해시
+    pe = parser.get_pe()
+    vt_link  = f'<a href="https://www.virustotal.com/gui/file/{_e(sha256)}/" target="_blank" class="badge bg-danger text-decoration-none ms-1">[VT]</a>'
+    baz_link = f'<a href="https://bazaar.abuse.ch/sample/{_e(sha256)}/" target="_blank" class="badge bg-warning text-dark text-decoration-none ms-1">[Bazaar]</a>'
+
+    hash_rows_html = ""
+    for k, v in hashes.items():
+        if not v:
+            continue
+        extra = (vt_link + baz_link) if k == "sha256" else ""
+        hash_rows_html += f"""
+<tr>
+  <th class="text-muted" style="width:110px">{k.upper()}</th>
+  <td class="font-monospace small">
+    <span id="hash-{k}">{_e(v)}</span>{extra}
+    <button class="btn btn-sm btn-outline-secondary py-0 px-1 ms-2"
+            onclick="copyText('{_e(v)}')" title="복사">
+      <i class="fas fa-copy"></i>
+    </button>
+  </td>
+</tr>"""
+
+    file_detail_rows = "".join([
+        f"<tr><th class='text-muted' style='width:130px'>파일명</th><td class='font-monospace'><b>{_e(fi.get('name','—'))}</b></td></tr>",
+        f"<tr><th class='text-muted'>파일 타입</th><td>{_e(fi.get('type','—'))}</td></tr>",
+        f"<tr><th class='text-muted'>파일 크기</th><td>{_e(fi.get('size','—'))} bytes</td></tr>",
+    ])
+    if pe.get("timestamp"):
+        file_detail_rows += f"<tr><th class='text-muted'>PE Timestamp</th><td class='font-monospace'>{_e(pe.get('timestamp',''))}</td></tr>"
+    if pe.get("imagebase"):
+        file_detail_rows += f"<tr><th class='text-muted'>ImageBase</th><td class='font-monospace'>{_e(pe.get('imagebase',''))}</td></tr>"
+
+    # YARA
+    yara_m = parser.get_yara_matches()
+    if yara_m:
+        yara_items = "".join(
+            f'<li class="list-group-item list-group-item-warning"><i class="fas fa-search me-2"></i>{_e(y.get("name", y) if isinstance(y, dict) else y)}</li>'
+            for y in yara_m
+        )
+        yara_card = f"""
+<div class="card mb-3">
+  <div class="card-header"><i class="fas fa-file-code me-2 text-warning"></i>YARA Matches</div>
+  <ul class="list-group list-group-flush">{yara_items}</ul>
+</div>"""
+    else:
+        yara_card = ""
+
+    # PE Sections
     pe_secs = parser.get_pe_sections()
-    pe_sec_rows = "".join(
-        f"<tr><td class='mono'>{_e(s.get('name',''))}</td>"
-        f"<td class='mono'>{_e(s.get('virtual_address',''))}</td>"
-        f"<td class='mono'>{_e(s.get('virtual_size',''))}</td>"
-        f"<td class='mono'>{_e(s.get('size_of_data', s.get('size_of_raw_data','')))}</td>"
-        f"<td>{_e(s.get('entropy',''))}</td></tr>"
-        for s in pe_secs
-    ) if pe_secs else "<tr><td colspan='5' class='empty'>없음</td></tr>"
-
-    susp = parser.get_suspicious_imports()
-    susp_rows = "".join(
-        f"<tr><td class='mono'>{_e(i['dll'])}</td>"
-        f"<td class='mono'>{_e(', '.join(i['functions']))}</td></tr>"
-        for i in susp
-    ) if susp else "<tr><td colspan='2' class='empty'>없음</td></tr>"
-
-    net  = parser.get_network_iocs()
-    net_rows = "".join(
-        f"<tr><td class='badge-cell'><span class='badge ioc-type'>{t}</span></td>"
-        f"<td class='mono'>{_e(v)}</td></tr>"
-        for t, v in (
-            [("Domain", d) for d in net["domains"][:20]] +
-            [("IP",     ip) for ip in net["ips"][:20]] +
-            [("URL",    u)  for u  in net["urls"][:20]]
+    if pe_secs:
+        pe_sec_rows = "".join(
+            f"<tr>"
+            f"<td class='font-monospace'>{_e(s.get('name',''))}</td>"
+            f"<td class='font-monospace'>{_e(s.get('virtual_address',''))}</td>"
+            f"<td class='font-monospace'>{_e(s.get('virtual_size',''))}</td>"
+            f"<td class='font-monospace'>{_e(s.get('size_of_data', s.get('size_of_raw_data','')))}</td>"
+            f"<td class='{'text-danger fw-bold' if float(s.get('entropy',0) or 0) > 7 else ''}'>{_e(s.get('entropy',''))}</td>"
+            f"</tr>"
+            for s in pe_secs
         )
-    ) or "<tr><td colspan='2' class='empty'>없음</td></tr>"
-
-    host = parser.get_host_iocs()
-    host_rows = "".join(
-        f"<tr><td class='badge-cell'><span class='badge ioc-type'>{t}</span></td>"
-        f"<td class='mono'>{_e(v)}</td></tr>"
-        for t, v in (
-            [("Registry", r) for r in host["registry"][:15]] +
-            [("File",     f_) for f_ in host["files"][:15]] +
-            [("Mutex",    m)  for m  in host["mutexes"][:15]]
-        )
-    ) or "<tr><td colspan='2' class='empty'>없음</td></tr>"
-
-    page2 = f"""
-    <section class="page">
-      <div class="section-header">2. File Information &amp; IOC</div>
-
-      <h3>File Hashes</h3>
-      <table class="kv-table"><tbody>{hash_rows}</tbody></table>
-
-      <h3>PE Sections</h3>
-      <table class="data-table">
+        pe_section_card = f"""
+<div class="card mb-3">
+  <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#collapse-pe-sec">
+    <i class="fas fa-layer-group me-2 text-info"></i>PE Sections
+    <i class="fas fa-chevron-down float-end"></i>
+  </div>
+  <div class="collapse" id="collapse-pe-sec">
+    <div class="table-responsive">
+      <table class="table table-striped table-bordered table-dark table-sm mb-0">
         <thead><tr><th>Name</th><th>Virt. Address</th><th>Virt. Size</th><th>Raw Size</th><th>Entropy</th></tr></thead>
         <tbody>{pe_sec_rows}</tbody>
       </table>
+    </div>
+  </div>
+</div>"""
+    else:
+        pe_section_card = ""
 
-      <h3>Suspicious Imports</h3>
-      <table class="data-table">
-        <thead><tr><th>DLL</th><th>Functions</th></tr></thead>
+    # PE Imports (Suspicious)
+    susp = parser.get_suspicious_imports()
+    if susp:
+        susp_rows = "".join(
+            f"<tr>"
+            f"<td class='font-monospace text-warning'>{_e(i['dll'])}</td>"
+            f"<td><small class='font-monospace'>" +
+            " ".join(
+                f'<a href="https://docs.microsoft.com/en-us/search/?terms={_e(fn)}" '
+                f'target="_blank" class="badge bg-secondary text-decoration-none me-1">{_e(fn)}</a>'
+                for fn in i["functions"]
+            ) +
+            f"</small></td>"
+            f"</tr>"
+            for i in susp
+        )
+        imports_card = f"""
+<div class="card mb-3">
+  <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#collapse-imports">
+    <i class="fas fa-plug me-2 text-warning"></i>Suspicious Imports
+    <span class="badge bg-warning text-dark ms-2">{len(susp)}</span>
+    <i class="fas fa-chevron-down float-end"></i>
+  </div>
+  <div class="collapse" id="collapse-imports">
+    <div class="table-responsive">
+      <table class="table table-striped table-bordered table-dark table-sm mb-0">
+        <thead><tr><th>DLL</th><th>Functions <small class="text-muted">(클릭 → MS Docs)</small></th></tr></thead>
         <tbody>{susp_rows}</tbody>
       </table>
+    </div>
+  </div>
+</div>"""
+    else:
+        imports_card = ""
 
-      <h3>Network IOC</h3>
-      <table class="data-table">
-        <thead><tr><th>Type</th><th>Value</th></tr></thead>
-        <tbody>{net_rows}</tbody>
-      </table>
+    pane_overview = f"""
+<div class="row mb-3">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="fas fa-file me-2 text-primary"></i>File Details</div>
+      <table class="table table-dark table-sm mb-0"><tbody>{file_detail_rows}</tbody></table>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="fas fa-fingerprint me-2 text-primary"></i>File Hashes</div>
+      <table class="table table-dark table-sm mb-0"><tbody>{hash_rows_html}</tbody></table>
+    </div>
+  </div>
+</div>
+<div class="card mb-3">
+  <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#collapse-analysis">
+    <i class="fas fa-flask me-2 text-secondary"></i>Analysis Summary
+    <i class="fas fa-chevron-down float-end"></i>
+  </div>
+  <div class="collapse" id="collapse-analysis">
+    <div class="card-body">
+      <dl class="row mb-0">{analysis_rows}</dl>
+    </div>
+  </div>
+</div>
+{yara_card}
+{pe_section_card}
+{imports_card}"""
 
-      <h3>Host IOC</h3>
-      <table class="data-table">
-        <thead><tr><th>Type</th><th>Value</th></tr></thead>
-        <tbody>{host_rows}</tbody>
-      </table>
-    </section>"""
-
-    # ── Page 3: Detection Signatures ─────────────────────────
-    sig_rows = ""
+    # ── Signatures 탭 ─────────────────────────────────────────
+    sig_items = ""
+    sig_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
     for sig in all_sigs:
-        sev    = str(sig.get("severity", "info")).lower()
-        sc     = SEV_COLOR.get(sev, "#888")
-        is_cmr = sig.get("name", "").startswith("[CMR]")
-        bold   = "font-weight:bold;" if is_cmr else ""
-        sig_rows += (
-            f"<tr class='{'cmr-row' if is_cmr else ''}'>"
-            f"<td><span class='sev-badge' style='background:{sc}'>{sev.upper()}</span></td>"
-            f"<td style='{bold}'>{_e(sig.get('name',''))}</td>"
-            f"<td>{_e(sig.get('description',''))}</td></tr>"
+        sev = str(sig.get("severity", "info")).lower()
+        sig_counts[sev] = sig_counts.get(sev, 0) + 1
+        list_cls  = SEV_LIST.get(sev, "list-group-item-secondary")
+        badge_cls = SEV_BADGE.get(sev, "secondary")
+        name = _e(sig.get("name", ""))
+        desc = _e(sig.get("description", ""))
+        is_custom = sig.get("name", "").startswith("[YB]")
+        custom_badge = '<span class="badge bg-primary ms-1">YB</span>' if is_custom else ""
+        sig_items += f"""
+<li class="list-group-item {list_cls} d-flex justify-content-between align-items-start">
+  <div>
+    <span class="fw-bold">{name}</span>{custom_badge}
+    <div class="text-muted small mt-1">{desc}</div>
+  </div>
+  <span class="badge bg-{badge_cls} ms-2">{sev.upper()}</span>
+</li>"""
+
+    summary_badges = " ".join(
+        f'<span class="badge bg-{SEV_BADGE.get(s,"secondary)}">{s.upper()}: {c}</span>'
+        for s, c in sig_counts.items() if c > 0
+    )
+
+    pane_sigs = f"""
+<div class="d-flex gap-2 mb-3 flex-wrap">{summary_badges}</div>
+<ul class="list-group">
+{sig_items if sig_items else '<li class="list-group-item">탐지된 시그니처 없음</li>'}
+</ul>"""
+
+    # ── Network 탭 ────────────────────────────────────────────
+    net  = parser.get_network_iocs()
+    host = parser.get_host_iocs()
+
+    def _ioc_table(items, label):
+        if not items:
+            return f'<p class="text-muted fst-italic">없음</p>'
+        rows = "".join(
+            f'<tr><td class="font-monospace small">{_e(v)}</td></tr>'
+            for v in items
         )
+        return f"""
+<table class="table table-dark table-striped table-bordered table-sm">
+  <thead><tr><th>{label}</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table>"""
 
-    page3 = f"""
-    <section class="page">
-      <div class="section-header">3. Detection Signatures</div>
-      <table class="data-table">
-        <thead><tr><th>Severity</th><th>Name</th><th>Description</th></tr></thead>
-        <tbody>{sig_rows if sig_rows else "<tr><td colspan='3' class='empty'>없음</td></tr>"}</tbody>
-      </table>
-    </section>"""
+    dns_html  = _ioc_table(net["domains"], "Domain")
+    ip_html   = _ioc_table(net["ips"],     "IP Address")
+    url_html  = _ioc_table(net["urls"],    "URL")
+    reg_html  = _ioc_table(host["registry"], "Registry Key")
+    file_html = _ioc_table(host["files"],    "File Path")
+    mutex_html= _ioc_table(host["mutexes"],  "Mutex")
 
-    # ── Page 4: MITRE ATT&CK ─────────────────────────────────
+    pane_network = f"""
+<ul class="nav nav-pills mb-3" id="netTab" role="tablist">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#net-dns">
+    <i class="fas fa-globe me-1"></i>DNS <span class="badge bg-secondary">{len(net["domains"])}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-ip">
+    <i class="fas fa-server me-1"></i>IP <span class="badge bg-secondary">{len(net["ips"])}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-url">
+    <i class="fas fa-link me-1"></i>HTTP <span class="badge bg-secondary">{len(net["urls"])}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-reg">
+    <i class="fas fa-key me-1"></i>Registry <span class="badge bg-secondary">{len(host["registry"])}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-file">
+    <i class="fas fa-file me-1"></i>Files <span class="badge bg-secondary">{len(host["files"])}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-mutex">
+    <i class="fas fa-lock me-1"></i>Mutexes <span class="badge bg-secondary">{len(host["mutexes"])}</span></a></li>
+</ul>
+<div class="tab-content">
+  <div class="tab-pane fade show active" id="net-dns">{dns_html}</div>
+  <div class="tab-pane fade" id="net-ip">{ip_html}</div>
+  <div class="tab-pane fade" id="net-url">{url_html}</div>
+  <div class="tab-pane fade" id="net-reg">{reg_html}</div>
+  <div class="tab-pane fade" id="net-file">{file_html}</div>
+  <div class="tab-pane fade" id="net-mutex">{mutex_html}</div>
+</div>"""
+
+    # ── ATT&CK 탭 ─────────────────────────────────────────────
     ttps = parser.get_ttps()
-    ttp_rows = "".join(
-        f"<tr>"
-        f"<td class='mono'>{_e(t['technique_id'])}</td>"
-        f"<td>{_e(TECHNIQUE_TACTICS.get(t['technique_id'].split('.')[0], '—'))}</td>"
-        f"<td>{_e(t.get('description',''))}</td></tr>"
-        for t in ttps
-    ) if ttps else "<tr><td colspan='3' class='empty'>없음</td></tr>"
+    if ttps:
+        ttp_rows = ""
+        seen = set()
+        for t in ttps:
+            tid = t["technique_id"]
+            if tid in seen:
+                continue
+            seen.add(tid)
+            tid_base = tid.split(".")[0]
+            tactic = _e(TECHNIQUE_TACTICS.get(tid_base, "—"))
+            desc   = _e(t.get("description", ""))
+            sig    = _e(t.get("signature", ""))
+            mitre_url = f"https://attack.mitre.org/techniques/{tid.replace('.', '/')}/"
+            ttp_rows += f"""
+<tr>
+  <td><a href="{mitre_url}" target="_blank" class="badge bg-primary text-decoration-none font-monospace">{_e(tid)}</a></td>
+  <td><span class="badge bg-secondary">{tactic}</span></td>
+  <td class="small">{desc}</td>
+  <td class="small text-muted">{sig}</td>
+</tr>"""
+        ttp_table = f"""
+<div class="table-responsive">
+  <table class="table table-dark table-striped table-bordered">
+    <thead><tr><th>Technique</th><th>Tactic</th><th>Description</th><th>Signature</th></tr></thead>
+    <tbody>{ttp_rows}</tbody>
+  </table>
+</div>"""
+    else:
+        ttp_table = '<p class="text-muted fst-italic">ATT&CK TTP 없음</p>'
 
-    page4 = f"""
-    <section class="page">
-      <div class="section-header">4. MITRE ATT&amp;CK</div>
-      <table class="data-table">
-        <thead><tr><th>Technique ID</th><th>Tactic</th><th>Description</th></tr></thead>
-        <tbody>{ttp_rows}</tbody>
-      </table>
-    </section>"""
+    pane_attack = ttp_table
 
-    # ── Page 5: AI Analysis ───────────────────────────────────
+    # ── AI 분석 탭 ────────────────────────────────────────────
     if ai_text:
         ai_html = ""
         for line in ai_text.split("\n"):
-            stripped = line.strip()
-            if not stripped:
-                ai_html += "<br>"
-            elif stripped.startswith("## "):
-                ai_html += f"<h3>{_e(stripped[3:])}</h3>"
+            s = line.strip()
+            if not s:
+                ai_html += "<div class='mb-2'></div>"
+            elif s.startswith("## "):
+                ai_html += f"<h5 class='text-info mt-3 mb-2'>{_e(s[3:])}</h5>"
+            elif s.startswith("# "):
+                ai_html += f"<h4 class='text-primary mt-3 mb-2'>{_e(s[2:])}</h4>"
+            elif s.startswith("- ") or s.startswith("• "):
+                ai_html += f"<div class='ms-3 mb-1'>• {_e(s[2:])}</div>"
             else:
-                ai_html += f"<p>{_e(stripped)}</p>"
-        ai_content = f"<div class='ai-box'>{ai_html}</div>"
+                ai_html += f"<p class='mb-1'>{_e(s)}</p>"
+        pane_ai = f'<div class="card card-body bg-dark">{ai_html}</div>'
     else:
-        ai_content = "<p class='empty'>AI 분석 결과 없음 — AI 분석 탭에서 분석을 실행한 후 내보내기 하세요.</p>"
+        pane_ai = '<p class="text-muted fst-italic">AI 분석 결과 없음 — AI 분석 탭에서 실행 후 내보내기 하세요.</p>'
 
-    page5 = f"""
-    <section class="page">
-      <div class="section-header">5. AI Analysis</div>
-      {ai_content}
-    </section>"""
-
-    # ── CSS + 조합 ─────────────────────────────────────────────
-    css = """
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#e0e0e0;padding:0}
-    .page{background:#16213e;border-radius:8px;padding:24px;margin:20px auto;max-width:960px}
-    .cover-header{background:#0a0a1a;border-radius:6px;padding:32px;text-align:center;margin-bottom:16px}
-    h1{font-size:1.6rem;color:#7ec8e3;letter-spacing:.1em}
-    h3{font-size:.95rem;color:#7ec8e3;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #0f3460}
-    .section-header{background:#0f3460;color:#7ec8e3;font-size:1.05rem;font-weight:bold;
-                    padding:10px 14px;border-radius:4px;margin-bottom:16px}
-    .verdict-box{border-radius:6px;padding:18px;text-align:center;font-size:1.3rem;
-                 font-weight:bold;color:#fff;margin:14px 0}
-    .meta-row{margin-bottom:12px}
-    .kv-table{width:100%;border-collapse:collapse;font-size:.88rem;margin-bottom:4px}
-    .kv-key{color:#6c7086;font-weight:bold;width:160px;padding:5px 10px;
-            background:#0f3460;white-space:nowrap}
-    .kv-table td{padding:5px 10px;border-bottom:1px solid #0f3460}
-    .data-table{width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:4px}
-    .data-table th{background:#0f3460;color:#7ec8e3;text-align:left;padding:6px 10px}
-    .data-table td{padding:5px 10px;border-bottom:1px solid #0f3460;vertical-align:top}
-    .data-table tr:hover td{background:#0f346044}
-    .mono{font-family:Consolas,monospace;font-size:.82rem;word-break:break-all}
-    .sev-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:.78rem;
-               font-weight:bold;color:#1a1a2e}
-    .badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:.8rem;font-weight:bold}
-    .family{background:#e0a050;color:#1a1a2e}
-    .ioc-type{background:#0f3460;color:#7ec8e3}
-    .badge-cell{white-space:nowrap;width:90px}
-    .cmr-row td{background:#0f346033}
-    .ai-box{line-height:1.7;font-size:.9rem}
-    .ai-box h3{color:#7ec8e3;margin:14px 0 6px}
-    .ai-box p{margin:4px 0;color:#cdd6f4}
-    .empty{color:#6c7086;font-style:italic;padding:8px 10px}
-    @media print{
-      body{background:#fff;color:#000}
-      .page{background:#fff;border:1px solid #ccc;page-break-after:always;margin:0;border-radius:0}
-      .section-header{background:#0f3460}
-      .cover-header{background:#1a1a2e}
-    }
-    """
-
+    # ── 최종 조합 ─────────────────────────────────────────────
     return f"""<!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-bs-theme="dark">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CAPEv2 Report — {_e(hashes.get('sha256','')[:16])}...</title>
-<style>{css}</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CAPE Report — {_e(sha256[:16])}...</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/darkly/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body {{ font-size: .9rem; }}
+    .font-monospace {{ font-size: .82rem; word-break: break-all; }}
+    .card-header[data-bs-toggle="collapse"] {{ cursor: pointer; }}
+    .card-header[data-bs-toggle="collapse"]:hover {{ background: rgba(255,255,255,.05); }}
+    .navbar {{ position: sticky; top: 0; z-index: 1000; }}
+    .table th {{ white-space: nowrap; }}
+    pre {{ background: #222; padding: 12px; border-radius: 6px; font-size: .8rem; }}
+  </style>
 </head>
 <body>
-{page1}
-{page2}
-{page3}
-{page4}
-{page5}
+{navbar}
+<div class="container-fluid py-3">
+  {detection_card}
+  {tabs_nav}
+  <div class="tab-content mt-3" id="mainTabContent">
+    <div class="tab-pane fade show active" id="pane-overview" role="tabpanel">
+      {pane_overview}
+    </div>
+    <div class="tab-pane fade" id="pane-sigs" role="tabpanel">
+      {pane_sigs}
+    </div>
+    <div class="tab-pane fade" id="pane-network" role="tabpanel">
+      {pane_network}
+    </div>
+    <div class="tab-pane fade" id="pane-attack" role="tabpanel">
+      {pane_attack}
+    </div>
+    <div class="tab-pane fade" id="pane-ai" role="tabpanel">
+      {pane_ai}
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function copyText(text) {{
+  navigator.clipboard.writeText(text).then(() => {{
+    const el = document.activeElement;
+    const orig = el.innerHTML;
+    el.innerHTML = '<i class="fas fa-check"></i>';
+    setTimeout(() => {{ el.innerHTML = orig; }}, 1200);
+  }});
+}}
+</script>
 </body>
 </html>"""
