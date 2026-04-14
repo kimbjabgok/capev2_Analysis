@@ -81,7 +81,6 @@ class App(tk.Tk):
         self._loading     = False
         self._loading_dots = 0
 
-        self._build_menu()
         self._build_header()
         self._build_toolbar()
         self._build_verdict_strip()
@@ -94,27 +93,6 @@ class App(tk.Tk):
         else:
             self.after(400, self._check_first_run)
 
-    # ── 메뉴 ──────────────────────────────────────────────────
-    def _build_menu(self):
-        menubar = tk.Menu(self, bg=BG2, fg=FG,
-                          activebackground=ACCENT, activeforeground=BG,
-                          relief="flat", borderwidth=0)
-        self.config(menu=menubar)
-
-        file_menu = tk.Menu(menubar, tearoff=False, bg=BG2, fg=FG,
-                            activebackground=ACCENT, activeforeground=BG)
-        file_menu.add_command(label="리포트 열기  (Ctrl+O)", command=self._browse_file)
-        file_menu.add_separator()
-        file_menu.add_command(label="종료", command=self.destroy)
-        menubar.add_cascade(label="파일", menu=file_menu)
-
-        tool_menu = tk.Menu(menubar, tearoff=False, bg=BG2, fg=FG,
-                            activebackground=ACCENT, activeforeground=BG)
-        tool_menu.add_command(label="설정", command=self._open_settings)
-        menubar.add_cascade(label="도구", menu=tool_menu)
-
-        self.bind("<Control-o>", lambda e: self._browse_file())
-
     # ── 헤더 바 (브랜딩) ────────────────────────────────────────
     def _build_header(self):
         hdr = tk.Frame(self, bg=_DARK_HDR, height=46)
@@ -125,17 +103,6 @@ class App(tk.Tk):
                  font=("Segoe UI", 12, "bold")).pack(side="left", padx=(18, 0), pady=10)
         tk.Label(hdr, text="v2 Report Analyzer", bg=_DARK_HDR, fg=FG_DIM,
                  font=("Segoe UI", 10)).pack(side="left", padx=(4, 0), pady=10)
-
-        settings_btn = tk.Button(
-            hdr, text="⚙  설정", command=self._open_settings,
-            bg=_DARK_HDR, fg=FG_DIM,
-            activebackground=BG2, activeforeground=FG,
-            font=("Segoe UI", 9), relief="flat", borderwidth=0,
-            padx=14, pady=0, cursor="hand2",
-        )
-        settings_btn.pack(side="right", padx=10)
-        settings_btn.bind("<Enter>", lambda e: settings_btn.config(fg=ACCENT))
-        settings_btn.bind("<Leave>", lambda e: settings_btn.config(fg=FG_DIM))
 
         tk.Frame(self, bg=_BORDER, height=1).pack(fill="x")
 
@@ -174,6 +141,11 @@ class App(tk.Tk):
                                hover_bg=ACCENT, hover_fg=BG,
                                state="disabled")
         self.export_btn.pack(side="right", padx=4, pady=10)
+
+        api_btn = _btn(bar, "API 키 설정", self._open_settings,
+                       bg=BG3, fg=FG_DIM,
+                       hover_bg=ACCENT, hover_fg=BG)
+        api_btn.pack(side="right", padx=(4, 4), pady=10)
 
         tk.Frame(self, bg=_BORDER, height=1).pack(fill="x")
 
@@ -467,7 +439,7 @@ class App(tk.Tk):
         bar = tk.Frame(self, bg="#2d2250", height=36)
         bar.place(relx=0, rely=1.0, anchor="sw", relwidth=1.0)
 
-        tk.Label(bar, text="⚙  API 키가 설정되지 않았습니다. AI 분석 및 VirusTotal 기능을 사용하려면 설정을 완료하세요.",
+        tk.Label(bar, text="⚙  API 키가 설정되지 않았습니다. AI 분석 및 VirusTotal 기능을 사용하려면 API 키 설정을 완료하세요.",
                  bg="#2d2250", fg="#cba6f7",
                  font=("Segoe UI", 9)).pack(side="left", padx=14, pady=8)
 
@@ -488,7 +460,7 @@ class App(tk.Tk):
     # ── 설정 창 ───────────────────────────────────────────────
     def _open_settings(self):
         win = tk.Toplevel(self)
-        win.title("설정")
+        win.title("API 키 설정")
         win.geometry("500x260")
         win.configure(bg=BG)
         win.resizable(False, False)
@@ -499,7 +471,7 @@ class App(tk.Tk):
         hdr = tk.Frame(win, bg=BG2, height=50)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
-        tk.Label(hdr, text="설정", bg=BG2, fg=FG,
+        tk.Label(hdr, text="API 키 설정", bg=BG2, fg=FG,
                  font=("Segoe UI", 11, "bold")).pack(side="left", padx=18, pady=14)
         tk.Frame(win, bg=_BORDER, height=1).pack(fill="x")
 
