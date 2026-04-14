@@ -9,9 +9,9 @@ from pathlib import Path
 
 from gui.styles import (apply_theme, BG, BG2, BG3, FG, ACCENT, FG_DIM,
                         FONT_TITLE, FONT_LABEL, RED, GREEN, YELLOW, ORANGE)
-from gui import tab_overview, tab_signatures, tab_attack, tab_behavior, tab_cape, tab_ai
+from gui import tabs
 from modules.parser import ReportParser, load_report
-from modules import signatures as sig_engine, yara_engine, whitenoise, html_export, pdf_export
+from modules import analysis, services, export
 
 CONFIG_PATH = Path(os.environ.get("APPDATA", ".")) / "CAPEv2Analyzer" / "config.json"
 
@@ -274,17 +274,17 @@ class App(tk.Tk):
                 data   = load_report(path)
                 parser = ReportParser(data)
 
-                yara_results = yara_engine.scan_report_payloads(data)
+                yara_results = analysis.scan_report_payloads(data)
 
-                wn = whitenoise.load_filter()
+                wn = analysis.load_filter()
 
                 parser.set_whitenoise_filter(wn)
 
-                custom_sigs = sig_engine.run_all(data)
-                custom_sigs = whitenoise.filter_signatures(custom_sigs, wn)
+                custom_sigs = analysis.run_all(data)
+                custom_sigs = analysis.filter_signatures(custom_sigs, wn)
                 parser.set_custom_sigs(custom_sigs)
 
-                all_sigs = whitenoise.filter_signatures(parser.get_signatures(), wn)
+                all_sigs = analysis.filter_signatures(parser.get_signatures(), wn)
 
                 self.report_path = path
                 self.parser      = parser
@@ -371,28 +371,28 @@ class App(tk.Tk):
             w.destroy()
         try:
             inner = scrollable(f)
-            tab_overview.build(inner, parser, self.config_data)
+            tabs.build_overview(inner, parser, self.config_data)
         except Exception as e:
             import traceback
             errors.append(f"[Overview] {e}\n{traceback.format_exc()}")
             tk.Label(f, text=f"[오류] {e}", bg=BG, fg=RED,
                      font=FONT_LABEL, wraplength=800).pack(padx=12, pady=12, anchor="w")
 
-        safe_build("Signatures", tab_signatures.build, self.frames["Signatures"], all_sigs)
+        safe_build("Signatures", tabs.build_signatures, self.frames["Signatures"], all_sigs)
 
         ttps = parser.get_ttps()
-        safe_build("ATT&CK", tab_attack.build, self.frames["ATT&CK"], ttps)
+        safe_build("ATT&CK", tabs.build_attack, self.frames["ATT&CK"], ttps)
 
-        wn = whitenoise.load_filter()
-        api_calls = whitenoise.filter_api_calls(parser.get_api_calls(), wn)
-        safe_build("Behavior", tab_behavior.build, self.frames["Behavior"], api_calls)
+        wn = analysis.load_filter()
+        api_calls = analysis.filter_api_calls(parser.get_api_calls(), wn)
+        safe_build("Behavior", tabs.build_behavior, self.frames["Behavior"], api_calls)
 
-        safe_build("CAPE", tab_cape.build, self.frames["CAPE"], parser, yara_results)
+        safe_build("CAPE", tabs.build_cape, self.frames["CAPE"], parser, yara_results)
 
         self._ai_results = {}
         def _store_ai(provider, text):
             self._ai_results[provider] = text
-        safe_build("AI 분석", tab_ai.build, self.frames["AI 분석"],
+        safe_build("AI 분석", tabs.build_ai, self.frames["AI 분석"],
                    parser, self.config_data, save_config, _store_ai)
 
         # 내보내기 버튼 활성화
@@ -424,7 +424,7 @@ class App(tk.Tk):
             ai_text = "\n\n".join(
                 f"## {p}\n{t}" for p, t in self._ai_results.items()
             )
-            pdf_export.generate(self.parser, self.all_sigs, ai_text, path)
+            export.generate_pdf(self.parser, self.all_sigs, ai_text, path)
             webbrowser.open(f"file:///{os.path.abspath(path)}")
             self._set_status(f"PDF 저장 완료: {path}")
         except Exception as e:
@@ -448,7 +448,7 @@ class App(tk.Tk):
             ai_text = "\n\n".join(
                 f"### {p}\n{t}" for p, t in self._ai_results.items()
             )
-            html_str = html_export.generate(self.parser, self.all_sigs, ai_text)
+            html_str = export.generate_html(self.parser, self.all_sigs, ai_text)
             with open(path, "w", encoding="utf-8") as f:
                 f.write(html_str)
             webbrowser.open(f"file:///{os.path.abspath(path)}")

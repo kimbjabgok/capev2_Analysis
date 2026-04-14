@@ -268,7 +268,7 @@ class ReportParser:
         return ""
 
     def get_host_iocs(self) -> dict:
-        from modules.whitenoise import filter_registry_keys
+        from modules.analysis import filter_registry_keys
         reg, files, mutexes = [], [], []
         sr, sf, sm = set(), set(), set()
         for proc in self.get_processes():

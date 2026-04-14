@@ -1,4 +1,8 @@
-"""커스텀 시그니처 탐지 엔진 — [CMR] 태그"""
+"""분석 엔진 — 커스텀 시그니처 + YARA + 화이트노이즈 필터"""
+
+# ══════════════════════════════════════════════════════════════
+# signatures (CMR 커스텀 시그니처 탐지)
+# ══════════════════════════════════════════════════════════════
 import re
 from typing import List, Dict, Any
 
@@ -6,9 +10,6 @@ TAG = "[CMR]"
 
 SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 
-# ── 공통 패턴 목록 ────────────────────────────────────────────
-
-#Windows에 원래 설치된 정상 도구인데 악성코드가 악용하는 것들
 LOLBINS = {
     "powershell", "cmd", "bitsadmin", "certutil", "mshta",
     "rundll32", "regsvr32", "wscript", "cscript",
@@ -67,7 +68,6 @@ SENSITIVE_WALLET = [
 
 
 def _search(patterns: list, text: str) -> List[str]:
-    """패턴 목록 중 매칭된 것을 반환"""
     hits = []
     tl = text.lower()
     for p in patterns:
@@ -77,7 +77,6 @@ def _search(patterns: list, text: str) -> List[str]:
 
 
 def _flatten_behavior(report_data: dict) -> List[str]:
-    """behavior 섹션에서 문자열 덩어리 추출"""
     texts = []
     behavior = report_data.get("behavior", {})
     for proc in behavior.get("processes", []):
@@ -88,7 +87,6 @@ def _flatten_behavior(report_data: dict) -> List[str]:
                     texts.append(str(arg.get("value", "")))
                 else:
                     texts.append(str(arg))
-    # also include strings/cmdlines from processes
     for proc in behavior.get("processes", []):
         texts.append(proc.get("command_line", ""))
     return texts
@@ -101,29 +99,24 @@ def _collect_evidence(texts: list, patterns: list, label: str) -> List[str]:
         if hits:
             snippet = t[:120].replace("\n", " ")
             ev.append(f"{label}: {snippet}")
-    return list(dict.fromkeys(ev))[:20]  # deduplicate, max 20
+    return list(dict.fromkeys(ev))[:20]
 
 
-# ── 시그니처 1: Download/Exec ─────────────────────────────────
-#지속성이란 재부팅해도 악성코드가 살아남는 것. 방법마다 점수가 다름. LOLBin은 2점, 다운로드 힌트는 3점, 드롭 경로는 1점. 확장자 보너스는 1점.
 def detect_download_exec(report_data: dict) -> Dict[str, Any] | None:
     texts = _flatten_behavior(report_data)
-    # also check strings from file info
     strings = report_data.get("strings", [])
     if isinstance(strings, list):
         texts += strings
 
-    evidence_lolbin  = _collect_evidence(texts, [rf"\b{b}\b" for b in LOLBINS], "LOLBin")
-    evidence_dl      = _collect_evidence(texts, DOWNLOAD_HINTS, "DL-hint")
-    evidence_drop    = _collect_evidence(texts, DROP_PATHS, "DropPath")
+    evidence_lolbin = _collect_evidence(texts, [rf"\b{b}\b" for b in LOLBINS], "LOLBin")
+    evidence_dl     = _collect_evidence(texts, DOWNLOAD_HINTS, "DL-hint")
+    evidence_drop   = _collect_evidence(texts, DROP_PATHS, "DropPath")
 
-    # 점수 계산
     score = 0
-    if evidence_lolbin:  score += 2
-    if evidence_dl:      score += 3
-    if evidence_drop:    score += 1
+    if evidence_lolbin: score += 2
+    if evidence_dl:     score += 3
+    if evidence_drop:   score += 1
 
-    # 확장자 보너스
     all_text = " ".join(texts).lower()
     for ext in BONUS_EXT:
         if ext in all_text:
@@ -145,7 +138,6 @@ def detect_download_exec(report_data: dict) -> Dict[str, Any] | None:
     }
 
 
-# ── 시그니처 2: Persistence ───────────────────────────────────
 def detect_persistence(report_data: dict) -> Dict[str, Any] | None:
     texts = _flatten_behavior(report_data)
 
@@ -155,10 +147,10 @@ def detect_persistence(report_data: dict) -> Dict[str, Any] | None:
     ev_stup = _collect_evidence(texts, [PERSIST_STARTUP], "Startup")
 
     score = 0
-    if ev_reg:   score += 3
-    if ev_wmi:   score += 3
-    if ev_cmd:   score += 2
-    if ev_stup:  score += 2
+    if ev_reg:  score += 3
+    if ev_wmi:  score += 3
+    if ev_cmd:  score += 2
+    if ev_stup: score += 2
 
     all_text = " ".join(texts).lower()
     for ext in PERSIST_EXT:
@@ -181,7 +173,6 @@ def detect_persistence(report_data: dict) -> Dict[str, Any] | None:
     }
 
 
-# ── 시그니처 3: Sensitive Access ──────────────────────────────
 def detect_sensitive_access(report_data: dict) -> Dict[str, Any] | None:
     texts = _flatten_behavior(report_data)
 
@@ -212,3 +203,129 @@ def run_all(report_data: dict) -> List[Dict[str, Any]]:
         if r:
             results.append(r)
     return results
+
+
+# ══════════════════════════════════════════════════════════════
+# yara_engine
+# ══════════════════════════════════════════════════════════════
+from pathlib import Path
+
+RULES_DIR = Path(__file__).parent.parent / "yara_rules"
+
+try:
+    import yara
+    YARA_AVAILABLE = True
+except ImportError:
+    YARA_AVAILABLE = False
+
+
+def _compile_rules():
+    if not YARA_AVAILABLE:
+        return None
+    rule_files = list(RULES_DIR.glob("*.yar")) + list(RULES_DIR.glob("*.yara"))
+    if not rule_files:
+        return None
+    filepaths = {f.stem: str(f) for f in rule_files}
+    try:
+        return yara.compile(filepaths=filepaths)
+    except Exception as e:
+        print(f"[YARA] compile error: {e}")
+        return None
+
+
+_rules = None
+
+
+def get_rules():
+    global _rules
+    if _rules is None:
+        _rules = _compile_rules()
+    return _rules
+
+
+def scan_data(data: bytes) -> list:
+    rules = get_rules()
+    if rules is None or not data:
+        return []
+    try:
+        matches = rules.match(data=data)
+        return [{"rule": m.rule, "tags": list(m.tags), "strings": [
+            {"offset": s.instances[0].offset if s.instances else 0,
+             "identifier": s.identifier,
+             "data": s.instances[0].matched_data[:64].hex() if s.instances else ""}
+            for s in m.strings
+        ]} for m in matches]
+    except Exception as e:
+        print(f"[YARA] scan error: {e}")
+        return []
+
+
+def scan_file(path: str) -> list:
+    rules = get_rules()
+    if rules is None:
+        return []
+    try:
+        matches = rules.match(path)
+        return [{"rule": m.rule, "tags": list(m.tags)} for m in matches]
+    except Exception as e:
+        print(f"[YARA] file scan error: {e}")
+        return []
+
+
+def scan_report_payloads(report_data: dict) -> list:
+    results = []
+    for payload in report_data.get("CAPE", {}).get("payloads", []):
+        raw = payload.get("data", b"")
+        if isinstance(raw, str):
+            raw = raw.encode("latin-1", errors="replace")
+        matches = scan_data(raw)
+        if matches:
+            results.append({
+                "sha256":  payload.get("sha256", ""),
+                "matches": matches,
+            })
+    return results
+
+
+# ══════════════════════════════════════════════════════════════
+# whitenoise (정상 Windows OS 행위 필터링)
+# ══════════════════════════════════════════════════════════════
+import json as _json
+
+_DEFAULT_FILTER_FILE = Path(__file__).parent.parent / "whitenoise_filter.json"
+
+
+def load_filter(path=None) -> dict:
+    p = Path(path) if path else _DEFAULT_FILTER_FILE
+    if p.exists():
+        with open(p, "r", encoding="utf-8") as f:
+            return _json.load(f)
+    return {"processes": [], "api_calls": [], "registry_keys": [], "signature_names": []}
+
+
+def filter_api_calls(calls: list, wn: dict) -> list:
+    blocked_apis  = {a.lower() for a in wn.get("api_calls", [])}
+    blocked_procs = {p.lower() for p in wn.get("processes", [])}
+    result = []
+    for c in calls:
+        if c.get("api", "").lower() in blocked_apis:
+            continue
+        if c.get("process", "").lower() in blocked_procs:
+            continue
+        result.append(c)
+    return result
+
+
+def filter_signatures(sigs: list, wn: dict) -> list:
+    blocked = {s.lower() for s in wn.get("signature_names", [])}
+    return [s for s in sigs if s.get("name", "").lower() not in blocked]
+
+
+def filter_registry_keys(keys: list, wn: dict) -> list:
+    blocked = [p.lower() for p in wn.get("registry_keys", [])]
+    result = []
+    for k in keys:
+        key_lower = k.lower()
+        if not any(key_lower.startswith(b) for b in blocked):
+            result.append(k)
+    return result
