@@ -5,8 +5,6 @@ import threading
 import json
 import os
 import sys
-import tempfile
-import webbrowser
 from pathlib import Path
 
 from gui.styles import (apply_theme, BG, BG2, BG3, FG, ACCENT, FG_DIM,
@@ -176,13 +174,6 @@ class App(tk.Tk):
                                hover_bg=ACCENT, hover_fg=BG,
                                state="disabled")
         self.export_btn.pack(side="right", padx=4, pady=10)
-
-        self.browser_btn = _btn(bar, "🌐 브라우저로 보기", self._open_in_browser,
-                                bg=ACCENT, fg=_DARK_HDR,
-                                hover_bg=FG, hover_fg=_DARK_HDR,
-                                font=("Segoe UI", 9, "bold"),
-                                state="disabled")
-        self.browser_btn.pack(side="right", padx=4, pady=10)
 
         tk.Frame(self, bg=_BORDER, height=1).pack(fill="x")
 
@@ -407,10 +398,6 @@ class App(tk.Tk):
         # 내보내기 버튼 활성화
         self.export_btn.config(state="normal", fg=FG, bg=BG3)
         self.pdf_btn.config(state="normal", fg=FG, bg=BG3)
-        self.browser_btn.config(state="normal")
-
-        # 브라우저 자동 오픈
-        self._open_in_browser()
 
         self.stat_var.set(f"시그니처 {len(all_sigs)}개  |  점수 {score}/10")
         if errors:
@@ -418,21 +405,6 @@ class App(tk.Tk):
             print("\n".join(errors))
         else:
             self._set_status(f"로드 완료 — {name}")
-
-    # ── 브라우저로 보기 ────────────────────────────────────────
-    def _open_in_browser(self):
-        if not self.parser:
-            return
-        try:
-            ai_text = "\n\n".join(
-                f"## {p}\n{t}" for p, t in self._ai_results.items()
-            )
-            html_str = html_export.generate(self.parser, self.all_sigs, ai_text)
-            tmp = Path(tempfile.gettempdir()) / "cape_report_preview.html"
-            tmp.write_text(html_str, encoding="utf-8")
-            webbrowser.open(tmp.as_uri())
-        except Exception as e:
-            messagebox.showerror("오류", str(e))
 
     # ── PDF 내보내기 ───────────────────────────────────────────
     def _export_pdf(self):
