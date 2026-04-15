@@ -329,7 +329,6 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
 {sig_items if sig_items else '<li class="list-group-item">탐지된 시그니처 없음</li>'}
 </ul>"""
 
-    _sur    = parser.get_suricata()
     _dns    = parser.get_dns()
     _http   = parser.get_http()
     _tls    = parser.get_tls()
@@ -355,12 +354,6 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
                 f' table-bordered table-sm mb-0"><thead><tr>{th}</tr></thead>'
                 f'<tbody>{tb}</tbody></table></div>')
 
-    sur_html = _ntable(
-        ["SID", "Severity", "Signature", "Src IP", "Dst IP", "Proto"],
-        [(a.get("alert", {}).get("signature_id", ""), a.get("alert", {}).get("severity", ""),
-          a.get("alert", {}).get("signature", ""), a.get("src_ip", ""),
-          a.get("dest_ip", ""), a.get("proto", "")) for a in _sur]
-    )
     dns_html = _ntable(
         ["Request", "Type", "Answers"],
         [(d.get("request", ""), d.get("type", ""),
@@ -415,9 +408,7 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
 
     pane_network = f"""
 <ul class="nav nav-pills mb-3 flex-wrap" id="netTab" role="tablist">
-  <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#net-sur">
-    <i class="fas fa-shield-alt me-1"></i>Suricata <span class="badge bg-secondary">{len(_sur)}</span></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-dns">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#net-dns">
     <i class="fas fa-globe me-1"></i>DNS <span class="badge bg-secondary">{len(_dns)}</span></a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-http">
     <i class="fas fa-link me-1"></i>HTTP <span class="badge bg-secondary">{len(_http)}</span></a></li>
@@ -437,8 +428,7 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     <i class="fas fa-skull me-1"></i>Dead Hosts <span class="badge bg-secondary">{len(_dead)}</span></a></li>
 </ul>
 <div class="tab-content">
-  <div class="tab-pane fade show active" id="net-sur">{sur_html}</div>
-  <div class="tab-pane fade" id="net-dns">{dns_html}</div>
+  <div class="tab-pane fade show active" id="net-dns">{dns_html}</div>
   <div class="tab-pane fade" id="net-http">{http_html}</div>
   <div class="tab-pane fade" id="net-tls">{tls_html}</div>
   <div class="tab-pane fade" id="net-ssh">{ssh_html}</div>

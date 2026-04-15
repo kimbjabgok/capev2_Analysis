@@ -439,17 +439,6 @@ def build_network(parent: ttk.Frame, parser):
     nb = ttk.Notebook(parent)
     nb.pack(fill="both", expand=True, padx=4, pady=4)
 
-    tab_sur = ttk.Frame(nb)
-    nb.add(tab_sur, text="Suricata Alerts")
-    _fill_table(tab_sur, parser.get_suricata(),
-                ["SID", "Severity", "Signature", "Src IP", "Dst IP", "Proto"],
-                lambda a: (
-                    a.get("alert", {}).get("signature_id", ""),
-                    a.get("alert", {}).get("severity", ""),
-                    a.get("alert", {}).get("signature", ""),
-                    a.get("src_ip", ""), a.get("dest_ip", ""), a.get("proto", ""),
-                ))
-
     tab_dns = ttk.Frame(nb)
     nb.add(tab_dns, text="DNS")
     _fill_table(tab_dns, parser.get_dns(),
