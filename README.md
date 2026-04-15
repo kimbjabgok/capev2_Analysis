@@ -68,16 +68,28 @@ pillow
 
 | 탭 | 내용 |
 |---|---|
-| Overview | 판정 점수, 파일 해시, 패밀리, VirusTotal 조회 결과 |
-| Signatures | 탐지된 시그니처 목록 (심각도별 색상 구분) |
+| Overview | 판정 점수, 파일 해시, 패밀리, VirusTotal 조회 및 엔진별 전체 목록, PE 섹션, Suspicious Imports |
+| Signatures | CAPE 탐지 시그니처 + `[CMR]` 커스텀 시그니처 (심각도별 색상 구분, 필터 지원) |
 | ATT&CK | MITRE ATT&CK TTP 매핑 테이블 |
-| Behavior | 프로세스 API 콜 시퀀스 (화이트노이즈 필터 적용) |
-| CAPE | Payload 추출 결과 및 YARA 매칭 |
-| AI 분석 | Groq 기반 한국어 AI 분석 리포트 |
+| Network | DNS / HTTP / TLS / SSH / Hosts / TCP / UDP / Dead Hosts 상세 목록 |
+| Behavior | 프로세스 API 콜 시퀀스 + Registry / File / Mutex IOC (화이트노이즈 필터 적용) |
+| CAPE | Payload 추출 결과, YARA 매칭, 악성코드 설정값(Config) |
+| AI 분석 | Groq 기반 한국어 AI 분석 리포트 (위협 요약 / 악성 행위 / 네트워크 / 지속성 / 권고사항) |
+
+### VirusTotal 조회
+
+- Overview 탭에서 **VT 조회** 버튼 클릭 시 SHA256으로 자동 조회
+- 조회 결과는 탭 내에 **인라인 Treeview**로 즉시 표시 (새 창 불필요)
+- 엔진별 목록: **malicious(빨강) → suspicious(주황) → clean(초록)** 순 정렬
+- 필터(All / Detected / Clean) 및 엔진명·탐지명 검색 지원
+- HTML 내보내기 시 엔진 전체 목록이 리포트에 자동 포함 (조회하지 않은 경우 미포함)
 
 ### 리포트 내보내기
-- **HTML**: 5섹션 단일 파일, 인라인 CSS 다크 테마
-- **PDF**: ReportLab 기반 5페이지 (커버 / IOC / Signatures / ATT&CK / AI Analysis), 한글 폰트(맑은 고딕) 자동 적용
+
+- **HTML**: Bootstrap Darkly 다크 테마 단일 파일
+  - Analysis Summary 아래에 VirusTotal 엔진별 목록 섹션 포함 (탐지/정상/기타 분리, 탐지 비율 진행 바)
+  - YARA Matches / PE Sections / Suspicious Imports 카드 포함
+- **PDF**: ReportLab 기반 (커버 / IOC / Signatures / ATT&CK / AI Analysis), 한글 폰트(맑은 고딕) 자동 적용
 
 ---
 
@@ -85,7 +97,7 @@ pillow
 
 ### 커스텀 시그니처 (`[CMR]` 태그)
 
-`modules/signatures.py`에 정의된 행위 기반 탐지 룰입니다.
+`modules/analysis.py`에 정의된 행위 기반 탐지 룰입니다.
 
 #### `[CMR] Download/Exec Chain`
 LOLBin을 이용한 다운로드-실행 체인 탐지
@@ -177,32 +189,23 @@ LockBit 계열 랜섬웨어 패턴 탐지
 
 ```
 capev2_Analysis/
-├── main.py                  # 진입점
-├── build.bat                # PyInstaller 빌드 스크립트
-├── CAPEv2_Analyzer.spec     # PyInstaller 빌드 설정
+├── main.py                      # 진입점
+├── build.bat                    # PyInstaller 빌드 스크립트
+├── CAPEv2_Analyzer.spec         # PyInstaller 빌드 설정
 ├── requirements.txt
-├── whitenoise_filter.json   # 화이트노이즈 필터 설정
+├── whitenoise_filter.json       # 화이트노이즈 필터 설정
 ├── yara_rules/
-│   ├── redline.yar
-│   └── ransomware.yar
+│   ├── redline.yar              # RedLine / RecordBreaker 탐지
+│   └── ransomware.yar           # 랜섬웨어 일반 / LockBit 탐지
 ├── gui/
-│   ├── app.py               # 메인 윈도우
-│   ├── styles.py            # 다크 테마 색상/스타일
-│   ├── tab_overview.py
-│   ├── tab_signatures.py
-│   ├── tab_attack.py
-│   ├── tab_behavior.py
-│   ├── tab_cape.py
-│   └── tab_ai.py
+│   ├── app.py                   # 메인 윈도우 (로드, 탭 빌드, 내보내기)
+│   ├── styles.py                # 다크 테마 색상/스타일 상수
+│   └── tabs.py                  # 전체 탭 UI 빌드 함수
 └── modules/
-    ├── parser.py            # report.json 파서
-    ├── signatures.py        # [CMR] 커스텀 시그니처 엔진
-    ├── yara_engine.py       # YARA 스캔 엔진
-    ├── whitenoise.py        # 화이트노이즈 필터
-    ├── ai_analysis.py       # Groq AI 분석
-    ├── vt_api.py            # VirusTotal API
-    ├── html_export.py       # HTML 리포트 생성
-    └── pdf_export.py        # PDF 리포트 생성
+    ├── parser.py                # report.json 파서 (해시, 네트워크, IOC 등 추출)
+    ├── analysis.py              # [CMR] 커스텀 시그니처 + YARA 엔진 + 화이트노이즈 필터
+    ├── services.py              # VirusTotal API + Groq AI 분석
+    └── export.py                # HTML / PDF 리포트 생성
 ```
 
 ---
