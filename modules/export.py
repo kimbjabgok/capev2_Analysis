@@ -318,51 +318,90 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
 {sig_items if sig_items else '<li class="list-group-item">탐지된 시그니처 없음</li>'}
 </ul>"""
 
-    net  = parser.get_network_iocs()
-    host = parser.get_host_iocs()
+    _sur    = parser.get_suricata()
+    _dns    = parser.get_dns()
+    _http   = parser.get_http()
+    _tls    = parser.get_tls()
+    _ssh    = parser.get_ssh()
+    _nfiles = parser.get_network_files()
+    _reg    = parser.get_host_iocs()["registry"]
 
-    def _ioc_table(items, label):
-        if not items:
-            return '<p class="text-muted fst-italic">없음</p>'
-        rows = "".join(
-            f'<tr><td class="font-monospace small">{_e(v)}</td></tr>'
-            for v in items
+    def _ntable(cols, rows):
+        if not rows:
+            return '<p class="text-muted fst-italic small">데이터 없음</p>'
+        th = "".join(f"<th>{_e(c)}</th>" for c in cols)
+        tb = "".join(
+            "<tr>" + "".join(
+                f'<td class="font-monospace small" style="word-break:break-all">{_e(v)}</td>'
+                for v in r
+            ) + "</tr>"
+            for r in rows
         )
-        return f"""
-<table class="table table-dark table-striped table-bordered table-sm">
-  <thead><tr><th>{label}</th></tr></thead>
-  <tbody>{rows}</tbody>
-</table>"""
+        return (f'<div class="table-responsive"><table class="table table-dark table-striped'
+                f' table-bordered table-sm mb-0"><thead><tr>{th}</tr></thead>'
+                f'<tbody>{tb}</tbody></table></div>')
 
-    dns_html   = _ioc_table(net["domains"],    "Domain")
-    ip_html    = _ioc_table(net["ips"],        "IP Address")
-    url_html   = _ioc_table(net["urls"],       "URL")
-    reg_html   = _ioc_table(host["registry"],  "Registry Key")
-    file_html  = _ioc_table(host["files"],     "File Path")
-    mutex_html = _ioc_table(host["mutexes"],   "Mutex")
+    sur_html = _ntable(
+        ["SID", "Severity", "Signature", "Src IP", "Dst IP", "Proto"],
+        [(a.get("alert", {}).get("signature_id", ""), a.get("alert", {}).get("severity", ""),
+          a.get("alert", {}).get("signature", ""), a.get("src_ip", ""),
+          a.get("dest_ip", ""), a.get("proto", "")) for a in _sur]
+    )
+    dns_html = _ntable(
+        ["Request", "Type", "Answers"],
+        [(d.get("request", ""), d.get("type", ""),
+          ", ".join(a.get("data", "") for a in d.get("answers", []))) for d in _dns]
+    )
+    http_html = _ntable(
+        ["URI", "Method", "Host", "User-Agent", "Status"],
+        [(h.get("uri", ""), h.get("method", ""), h.get("host", ""),
+          h.get("user-agent", "")[:80], h.get("status", "")) for h in _http]
+    )
+    tls_html = _ntable(
+        ["SNI", "Version", "Src IP", "Dst IP", "JA3"],
+        [(t.get("sni", ""), t.get("version", ""),
+          t.get("src_ip", t.get("src", "")), t.get("dst_ip", t.get("dst", "")),
+          t.get("ja3", {}).get("hash", "") if isinstance(t.get("ja3"), dict) else t.get("ja3", ""))
+         for t in _tls]
+    )
+    ssh_html = _ntable(
+        ["Src IP", "Dst IP", "Client Banner", "Server Banner"],
+        [(s.get("src_ip", ""), s.get("dst_ip", ""),
+          s.get("client", {}).get("banner", ""), s.get("server", {}).get("banner", ""))
+         for s in _ssh]
+    )
+    nfiles_html = _ntable(
+        ["Path", "SHA256", "URI"],
+        [(f.get("path", f.get("filename", "")), f.get("sha256", ""), f.get("uri", ""))
+         for f in _nfiles]
+    )
+    reg_html = _ntable(["Registry Key"], [(_e(r),) for r in _reg])
 
     pane_network = f"""
-<ul class="nav nav-pills mb-3" id="netTab" role="tablist">
-  <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#net-dns">
-    <i class="fas fa-globe me-1"></i>DNS <span class="badge bg-secondary">{len(net["domains"])}</span></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-ip">
-    <i class="fas fa-server me-1"></i>IP <span class="badge bg-secondary">{len(net["ips"])}</span></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-url">
-    <i class="fas fa-link me-1"></i>HTTP <span class="badge bg-secondary">{len(net["urls"])}</span></a></li>
+<ul class="nav nav-pills mb-3 flex-wrap" id="netTab" role="tablist">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#net-sur">
+    <i class="fas fa-shield-alt me-1"></i>Suricata <span class="badge bg-secondary">{len(_sur)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-dns">
+    <i class="fas fa-globe me-1"></i>DNS <span class="badge bg-secondary">{len(_dns)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-http">
+    <i class="fas fa-link me-1"></i>HTTP <span class="badge bg-secondary">{len(_http)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-tls">
+    <i class="fas fa-lock me-1"></i>TLS <span class="badge bg-secondary">{len(_tls)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-ssh">
+    <i class="fas fa-terminal me-1"></i>SSH <span class="badge bg-secondary">{len(_ssh)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-files">
+    <i class="fas fa-file me-1"></i>Files <span class="badge bg-secondary">{len(_nfiles)}</span></a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-reg">
-    <i class="fas fa-key me-1"></i>Registry <span class="badge bg-secondary">{len(host["registry"])}</span></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-file">
-    <i class="fas fa-file me-1"></i>Files <span class="badge bg-secondary">{len(host["files"])}</span></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-mutex">
-    <i class="fas fa-lock me-1"></i>Mutexes <span class="badge bg-secondary">{len(host["mutexes"])}</span></a></li>
+    <i class="fas fa-key me-1"></i>Registry <span class="badge bg-secondary">{len(_reg)}</span></a></li>
 </ul>
 <div class="tab-content">
-  <div class="tab-pane fade show active" id="net-dns">{dns_html}</div>
-  <div class="tab-pane fade" id="net-ip">{ip_html}</div>
-  <div class="tab-pane fade" id="net-url">{url_html}</div>
+  <div class="tab-pane fade show active" id="net-sur">{sur_html}</div>
+  <div class="tab-pane fade" id="net-dns">{dns_html}</div>
+  <div class="tab-pane fade" id="net-http">{http_html}</div>
+  <div class="tab-pane fade" id="net-tls">{tls_html}</div>
+  <div class="tab-pane fade" id="net-ssh">{ssh_html}</div>
+  <div class="tab-pane fade" id="net-files">{nfiles_html}</div>
   <div class="tab-pane fade" id="net-reg">{reg_html}</div>
-  <div class="tab-pane fade" id="net-file">{file_html}</div>
-  <div class="tab-pane fade" id="net-mutex">{mutex_html}</div>
 </div>"""
 
     ttps = parser.get_ttps()
