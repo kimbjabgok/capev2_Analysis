@@ -348,9 +348,17 @@ class ReportParser:
                 for s in self.get_signatures()
             ],
             "network": {
-                "dns":      [d.get("request") for d in self.get_dns()],
-                "http":     [h.get("uri") for h in self.get_http()],
-                "suricata": [a.get("alert", {}).get("signature") for a in self.get_suricata()],
+                "dns":        [d.get("request") for d in self.get_dns()],
+                "http":       [h.get("uri") for h in self.get_http()],
+                "tls":        [t.get("sni") for t in self.get_tls() if t.get("sni")],
+                "hosts":      [{"ip": h.get("ip"), "country": h.get("country_name"),
+                                "ports": h.get("ports"), "process": h.get("process_name")}
+                               for h in self.get_hosts()],
+                "dead_hosts": [[d[0], d[1]] if isinstance(d, list)
+                               else [d.get("ip"), d.get("port")]
+                               for d in self.get_dead_hosts()],
+                "tcp_count":  len(self.get_tcp()),
+                "udp_count":  len(self.get_udp()),
             },
             "cape_configs": self.get_cape_configs(),
         }
