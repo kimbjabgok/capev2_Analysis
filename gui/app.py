@@ -122,7 +122,7 @@ class App(tk.Tk):
         tk.Frame(bar, bg=_BORDER, width=1).pack(side="left", fill="y", pady=10)
 
         self.path_label = tk.Label(
-            bar, text="JSON 리포트 파일을 열거나 드래그하세요.",
+            bar, text="JSON 리포트 파일을 여세요.",
             bg=BG2, fg=FG_DIM, font=("Segoe UI", 9),
         )
         self.path_label.pack(side="left", padx=14)
