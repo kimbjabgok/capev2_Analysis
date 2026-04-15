@@ -182,7 +182,7 @@ def _call_groq(messages: list, api_key: str, temperature: float = 0.3) -> str:
     }
     body = {
         "model":       GROQ_MODEL,
-        "max_tokens":  1024,
+        "max_tokens":  3000,
         "temperature": temperature,
         "messages":    messages,
     }
