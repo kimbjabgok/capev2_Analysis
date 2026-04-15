@@ -498,6 +498,46 @@ def build_network(parent: ttk.Frame, parser):
                     f.get("sha256", ""), f.get("uri", ""),
                 ))
 
+    tab_hosts = ttk.Frame(nb)
+    nb.add(tab_hosts, text="Hosts")
+    _fill_table(tab_hosts, parser.get_hosts(),
+                ["IP", "Country", "Ports", "Process"],
+                lambda h: (
+                    h.get("ip", ""),
+                    h.get("country_name", ""),
+                    ", ".join(str(p) for p in h.get("ports", [])),
+                    h.get("process_name", "") or "",
+                ))
+
+    tab_tcp = ttk.Frame(nb)
+    nb.add(tab_tcp, text="TCP")
+    _fill_table(tab_tcp, parser.get_tcp(),
+                ["Src", "Sport", "Dst", "Dport", "Process"],
+                lambda t: (
+                    t.get("src", ""), t.get("sport", ""),
+                    t.get("dst", ""), t.get("dport", ""),
+                    t.get("process_name", "") or "",
+                ))
+
+    tab_udp = ttk.Frame(nb)
+    nb.add(tab_udp, text="UDP")
+    _fill_table(tab_udp, parser.get_udp(),
+                ["Src", "Sport", "Dst", "Dport", "Process"],
+                lambda u: (
+                    u.get("src", ""), u.get("sport", ""),
+                    u.get("dst", ""), u.get("dport", ""),
+                    u.get("process_name", "") or "",
+                ))
+
+    tab_dead = ttk.Frame(nb)
+    nb.add(tab_dead, text="Dead Hosts")
+    _fill_table(tab_dead, parser.get_dead_hosts(),
+                ["IP", "Port"],
+                lambda d: (
+                    (d[0], d[1]) if isinstance(d, list)
+                    else (d.get("ip", ""), d.get("port", ""))
+                ))
+
 
 # ── CAPE ──────────────────────────────────────────────────────
 def build_cape(parent: ttk.Frame, parser, yara_results: list):

@@ -325,6 +325,10 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     _ssh    = parser.get_ssh()
     _nfiles = parser.get_network_files()
     _reg    = parser.get_host_iocs()["registry"]
+    _hosts  = parser.get_hosts()
+    _tcp    = parser.get_tcp()
+    _udp    = parser.get_udp()
+    _dead   = parser.get_dead_hosts()
 
     def _ntable(cols, rows):
         if not rows:
@@ -376,6 +380,29 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
          for f in _nfiles]
     )
     reg_html = _ntable(["Registry Key"], [(_e(r),) for r in _reg])
+    hosts_html = _ntable(
+        ["IP", "Country", "Ports", "Process"],
+        [(h.get("ip", ""), h.get("country_name", ""),
+          ", ".join(str(p) for p in h.get("ports", [])),
+          h.get("process_name", "") or "") for h in _hosts]
+    )
+    tcp_html = _ntable(
+        ["Src", "Sport", "Dst", "Dport", "Process"],
+        [(t.get("src", ""), t.get("sport", ""),
+          t.get("dst", ""), t.get("dport", ""),
+          t.get("process_name", "") or "") for t in _tcp]
+    )
+    udp_html = _ntable(
+        ["Src", "Sport", "Dst", "Dport", "Process"],
+        [(u.get("src", ""), u.get("sport", ""),
+          u.get("dst", ""), u.get("dport", ""),
+          u.get("process_name", "") or "") for u in _udp]
+    )
+    dead_html = _ntable(
+        ["IP", "Port"],
+        [(d[0], d[1]) if isinstance(d, list) else (d.get("ip", ""), d.get("port", ""))
+         for d in _dead]
+    )
 
     pane_network = f"""
 <ul class="nav nav-pills mb-3 flex-wrap" id="netTab" role="tablist">
@@ -393,6 +420,14 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     <i class="fas fa-file me-1"></i>Files <span class="badge bg-secondary">{len(_nfiles)}</span></a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-reg">
     <i class="fas fa-key me-1"></i>Registry <span class="badge bg-secondary">{len(_reg)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-hosts">
+    <i class="fas fa-server me-1"></i>Hosts <span class="badge bg-secondary">{len(_hosts)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-tcp">
+    <i class="fas fa-exchange-alt me-1"></i>TCP <span class="badge bg-secondary">{len(_tcp)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-udp">
+    <i class="fas fa-exchange-alt me-1"></i>UDP <span class="badge bg-secondary">{len(_udp)}</span></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-dead">
+    <i class="fas fa-skull me-1"></i>Dead Hosts <span class="badge bg-secondary">{len(_dead)}</span></a></li>
 </ul>
 <div class="tab-content">
   <div class="tab-pane fade show active" id="net-sur">{sur_html}</div>
@@ -402,6 +437,10 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
   <div class="tab-pane fade" id="net-ssh">{ssh_html}</div>
   <div class="tab-pane fade" id="net-files">{nfiles_html}</div>
   <div class="tab-pane fade" id="net-reg">{reg_html}</div>
+  <div class="tab-pane fade" id="net-hosts">{hosts_html}</div>
+  <div class="tab-pane fade" id="net-tcp">{tcp_html}</div>
+  <div class="tab-pane fade" id="net-udp">{udp_html}</div>
+  <div class="tab-pane fade" id="net-dead">{dead_html}</div>
 </div>"""
 
     ttps = parser.get_ttps()

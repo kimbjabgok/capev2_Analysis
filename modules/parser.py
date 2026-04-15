@@ -215,6 +215,18 @@ class ReportParser:
     def get_network_files(self) -> list:
         return self.get_network().get("files", [])
 
+    def get_hosts(self) -> list:
+        return self.get_network().get("hosts", [])
+
+    def get_tcp(self) -> list:
+        return self.get_network().get("tcp", [])
+
+    def get_udp(self) -> list:
+        return self.get_network().get("udp", [])
+
+    def get_dead_hosts(self) -> list:
+        return self.get_network().get("dead_hosts", [])
+
     def get_network_iocs(self) -> dict:
         domains = list(dict.fromkeys(
             d.get("request", "") for d in self.get_dns() if d.get("request")
