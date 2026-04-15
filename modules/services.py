@@ -195,6 +195,11 @@ def _call_groq(messages: list, api_key: str, temperature: float = 0.3) -> str:
     return f"[오류] HTTP {r.status_code}: {r.text[:300]}"
 
 
+def _strip_cjk(text: str) -> str:
+    """남아있는 CJK 문자를 완전히 제거한다 (최후 수단)."""
+    return _CJK_RE.sub("", text)
+
+
 def analyze(summary: dict, api_key: str) -> str:
     if not api_key:
         return "[오류] Groq API 키가 없습니다."
@@ -205,15 +210,24 @@ def analyze(summary: dict, api_key: str) -> str:
         ]
         result = _call_groq(messages, api_key, temperature=0.3)
 
-        # CJK 문자가 섞였으면 한 번 재요청
-        if not result.startswith("[오류]") and _CJK_RE.search(result):
+        # CJK 문자가 섞였으면 재요청 (최대 2회)
+        for attempt in range(2):
+            if result.startswith("[오류]") or not _CJK_RE.search(result):
+                break
+            found = _CJK_RE.findall(result)
+            unique_cjk = "".join(dict.fromkeys(found))[:20]
             fix_messages = messages + [
                 {"role": "assistant", "content": result},
                 {"role": "user", "content":
-                    "위 답변에 중국어나 일본어 한자가 섞여 있습니다. "
-                    "해당 한자를 모두 자연스러운 한국어로 바꿔서 전체 보고서를 다시 작성해주세요."},
+                    f"위 답변에 중국어·일본어 한자가 포함되어 있습니다 (예: {unique_cjk}).\n"
+                    "규칙: 한국어와 영어(기술 용어)만 사용하고 한자는 단 한 글자도 쓰지 마세요.\n"
+                    "전체 보고서를 처음부터 한국어로만 다시 작성하세요."},
             ]
             result = _call_groq(fix_messages, api_key, temperature=0.1)
+
+        # 재시도 후에도 CJK가 남아있으면 강제 제거
+        if not result.startswith("[오류]") and _CJK_RE.search(result):
+            result = _strip_cjk(result)
 
         return result
     except Exception as e:
