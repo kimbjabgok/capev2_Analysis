@@ -203,14 +203,34 @@ class ReportParser:
     def get_dns(self) -> list:
         return self.get_network().get("dns", [])
 
-    def get_http(self) -> list:
-        return self.get_network().get("http", [])
-
     def get_tls(self) -> list:
-        return self.get_network().get("tls", [])
+        net_tls = self.get_network().get("tls", [])
+        if net_tls:
+            return net_tls
+        result = []
+        for t in self.raw.get("suricata", {}).get("tls", []):
+            result.append({
+                "sni":     t.get("sni", ""),
+                "version": t.get("version", ""),
+                "src_ip":  t.get("srcip", t.get("src_ip", "")),
+                "dst_ip":  t.get("dstip", t.get("dst_ip", "")),
+                "ja3":     t.get("ja3", ""),
+                "subject": t.get("subject", ""),
+                "issuerdn": t.get("issuerdn", ""),
+            })
+        return result
+
+    def get_http(self) -> list:
+        net_http = self.get_network().get("http", [])
+        if net_http:
+            return net_http
+        return self.raw.get("suricata", {}).get("http", [])
 
     def get_ssh(self) -> list:
-        return self.get_network().get("ssh", [])
+        net_ssh = self.get_network().get("ssh", [])
+        if net_ssh:
+            return net_ssh
+        return self.raw.get("suricata", {}).get("ssh", [])
 
     def get_network_files(self) -> list:
         return self.get_network().get("files", [])
