@@ -12,7 +12,7 @@ SEVERITIES  = ["All", "Info", "Low", "Medium", "High", "Critical"]
 
 
 # ── Overview ──────────────────────────────────────────────────
-def build_overview(parent: ttk.Frame, parser, config: dict, refresh_vt_cb=None):
+def build_overview(parent: ttk.Frame, parser, config: dict, refresh_vt_cb=None, vt_done_cb=None):
     from modules import services as _svc
 
     for w in parent.winfo_children():
@@ -156,13 +156,77 @@ def build_overview(parent: ttk.Frame, parser, config: dict, refresh_vt_cb=None):
                               relief="flat", bd=1, highlightbackground=BG3)
     vt_frame.pack(fill="x", padx=12, pady=4)
 
+    # 상단 컨트롤 바
+    vt_top = tk.Frame(vt_frame, bg=BG)
+    vt_top.pack(fill="x")
+
     vt_info_var = tk.StringVar(value="— (API 키 필요)")
-    vt_lbl = tk.Label(vt_frame, textvariable=vt_info_var, bg=BG, fg=FG, font=FONT_MONO)
+    vt_lbl = tk.Label(vt_top, textvariable=vt_info_var, bg=BG, fg=FG, font=FONT_MONO)
     vt_lbl.pack(side="left", padx=8, pady=4)
 
     sha256 = hashes.get("sha256", "")
+    _vt_engines: list = []
+
+    # 필터 컨트롤 (조회 전엔 숨김)
+    vt_filter = tk.Frame(vt_frame, bg=BG)
+    filter_var = tk.StringVar(value="All")
+    search_var = tk.StringVar()
+
+    tk.Label(vt_filter, text="필터:", bg=BG, fg=FG_DIM, font=FONT_LABEL).pack(side="left", padx=(8, 2))
+    for opt in ("All", "Detected", "Clean"):
+        ttk.Radiobutton(vt_filter, text=opt, variable=filter_var,
+                        value=opt, command=lambda: _apply_filter()
+                        ).pack(side="left", padx=2)
+    tk.Label(vt_filter, text="검색:", bg=BG, fg=FG_DIM, font=FONT_LABEL).pack(side="left", padx=(12, 2))
+    search_var.trace_add("write", lambda *_: _apply_filter())
+    ttk.Entry(vt_filter, textvariable=search_var, width=20).pack(side="left", padx=4)
+    count_var = tk.StringVar()
+    tk.Label(vt_filter, textvariable=count_var, bg=BG, fg=FG_DIM, font=FONT_LABEL).pack(side="left", padx=8)
+
+    # 인라인 Treeview (조회 전엔 숨김)
+    vt_tv_frame = tk.Frame(vt_frame, bg=BG)
+    vsb = ttk.Scrollbar(vt_tv_frame, orient="vertical")
+    vsb.pack(side="right", fill="y")
+    cols = ["엔진", "판정", "탐지명"]
+    vt_tv = ttk.Treeview(vt_tv_frame, columns=cols, show="headings",
+                         yscrollcommand=vsb.set, height=10)
+    vt_tv.pack(side="left", fill="both", expand=True)
+    vsb.config(command=vt_tv.yview)
+    vt_tv.heading("엔진",  text="엔진")
+    vt_tv.heading("판정",  text="판정")
+    vt_tv.heading("탐지명", text="탐지명")
+    vt_tv.column("엔진",   width=180, minwidth=100)
+    vt_tv.column("판정",   width=110, minwidth=80)
+    vt_tv.column("탐지명", width=340, minwidth=120)
+    vt_tv.tag_configure("malicious",  foreground=RED)
+    vt_tv.tag_configure("suspicious", foreground=ORANGE)
+    vt_tv.tag_configure("clean",      foreground=GREEN)
+    vt_tv.tag_configure("other",      foreground=FG_DIM)
+
+    def _apply_filter():
+        for row in vt_tv.get_children():
+            vt_tv.delete(row)
+        f = filter_var.get()
+        q = search_var.get().lower()
+        shown = 0
+        for e in _vt_engines:
+            cat    = e["category"]
+            result = e["result"]
+            engine = e["engine"]
+            if f == "Detected" and cat not in ("malicious", "suspicious"):
+                continue
+            if f == "Clean" and cat in ("malicious", "suspicious"):
+                continue
+            if q and q not in engine.lower() and q not in result.lower():
+                continue
+            tag = cat if cat in ("malicious", "suspicious") else \
+                  "clean" if cat in ("harmless", "undetected") else "other"
+            vt_tv.insert("", "end", values=(engine, cat, result), tags=(tag,))
+            shown += 1
+        count_var.set(f"{shown} / {len(_vt_engines)} 엔진")
 
     def _do_vt_lookup():
+        nonlocal _vt_engines
         api_key = config.get("vt_api_key", "")
         if not api_key:
             vt_info_var.set("VirusTotal API 키를 도구 메뉴 → 설정에서 입력하세요.")
@@ -185,8 +249,16 @@ def build_overview(parent: ttk.Frame, parser, config: dict, refresh_vt_cb=None):
             vt_lbl.config(fg=color, cursor="hand2")
             if link:
                 vt_lbl.bind("<Button-1>", lambda e: webbrowser.open(link))
+            # 엔진 목록을 인라인으로 표시
+            _vt_engines = result.get("engines", [])
+            if _vt_engines:
+                _apply_filter()
+                vt_filter.pack(fill="x", pady=(2, 0))
+                vt_tv_frame.pack(fill="x", padx=8, pady=(2, 6))
+                if vt_done_cb:
+                    vt_done_cb(_vt_engines)
 
-    ttk.Button(vt_frame, text="VT 조회",
+    ttk.Button(vt_top, text="VT 조회",
                command=lambda: threading.Thread(target=_do_vt_lookup, daemon=True).start()
                ).pack(side="left", padx=6, pady=4)
 

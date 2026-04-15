@@ -64,7 +64,7 @@ def _e(v) -> str:
     return html.escape(str(v)) if v is not None else ""
 
 
-def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
+def generate_html(parser, all_sigs: list, ai_text: str = "", vt_engines: list = None) -> str:
     verdict  = parser.get_verdict()
     hashes   = parser.get_hashes()
     info     = parser.get_info()
@@ -188,6 +188,73 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     if pe.get("imagebase"):
         file_detail_rows += f"<tr><th class='text-muted'>ImageBase</th><td class='font-monospace'>{_e(pe.get('imagebase',''))}</td></tr>"
 
+    # VirusTotal 엔진 목록 카드
+    if vt_engines:
+        detected = [e for e in vt_engines if e["category"] in ("malicious", "suspicious")]
+        clean    = [e for e in vt_engines if e["category"] in ("harmless", "undetected")]
+        other    = [e for e in vt_engines if e["category"] not in ("malicious", "suspicious", "harmless", "undetected")]
+        pos      = len(detected)
+        total    = len(vt_engines)
+        bar_pct  = round(pos / total * 100) if total else 0
+        bar_cls  = "bg-danger" if pos > 10 else "bg-warning" if pos > 0 else "bg-success"
+
+        def _vt_row(e):
+            cat = e["category"]
+            if cat == "malicious":
+                badge = '<span class="badge bg-danger">malicious</span>'
+            elif cat == "suspicious":
+                badge = '<span class="badge bg-warning text-dark">suspicious</span>'
+            elif cat in ("harmless", "undetected"):
+                badge = '<span class="badge bg-success">clean</span>'
+            else:
+                badge = f'<span class="badge bg-secondary">{_e(cat)}</span>'
+            return (f"<tr><td class='font-monospace'>{_e(e['engine'])}</td>"
+                    f"<td>{badge}</td>"
+                    f"<td class='font-monospace small text-warning'>{_e(e['result'])}</td></tr>")
+
+        det_rows   = "".join(_vt_row(e) for e in detected)
+        clean_rows = "".join(_vt_row(e) for e in clean)
+        other_rows = "".join(_vt_row(e) for e in other)
+
+        def _section(title, rows, collapse_id):
+            if not rows:
+                return ""
+            return f"""
+<h6 class="mt-3 mb-1 text-muted small text-uppercase">{title}</h6>
+<div class="collapse show" id="{collapse_id}">
+  <div class="table-responsive">
+    <table class="table table-dark table-sm table-striped mb-0">
+      <thead><tr><th style="width:200px">엔진</th><th style="width:130px">판정</th><th>탐지명</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+  </div>
+</div>"""
+
+        vt_card = f"""
+<div class="card mb-3">
+  <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#collapse-vt">
+    <i class="fas fa-shield-alt me-2 text-danger"></i>VirusTotal
+    <span class="badge {'bg-danger' if pos > 10 else 'bg-warning text-dark' if pos > 0 else 'bg-success'} ms-2">{pos}/{total} detected</span>
+    <i class="fas fa-chevron-down float-end"></i>
+  </div>
+  <div class="collapse show" id="collapse-vt">
+    <div class="card-body pb-1">
+      <div class="progress mb-3" style="height:8px">
+        <div class="progress-bar {bar_cls}" style="width:{bar_pct}%"></div>
+      </div>
+      <a href="https://www.virustotal.com/gui/file/{_e(sha256)}" target="_blank"
+         class="btn btn-sm btn-outline-secondary mb-2">
+        <i class="fas fa-external-link-alt me-1"></i>VT에서 보기
+      </a>
+      {_section("탐지됨 (Malicious / Suspicious)", det_rows, "vt-det")}
+      {_section("정상 (Clean)", clean_rows, "vt-clean")}
+      {_section("기타", other_rows, "vt-other")}
+    </div>
+  </div>
+</div>"""
+    else:
+        vt_card = ""
+
     yara_m = parser.get_yara_matches()
     if yara_m:
         yara_items = "".join(
@@ -292,6 +359,7 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     </div>
   </div>
 </div>
+{vt_card}
 {yara_card}
 {pe_section_card}
 {imports_card}"""

@@ -39,11 +39,24 @@ def lookup_hash(sha256: str, api_key: str) -> dict:
             stats = attrs.get("last_analysis_stats", {})
             positives = stats.get("malicious", 0) + stats.get("suspicious", 0)
             total = sum(stats.values())
+            # 엔진별 상세 결과 수집
+            raw_results = attrs.get("last_analysis_results", {})
+            engines = []
+            for engine_name, detail in raw_results.items():
+                engines.append({
+                    "engine":   engine_name,
+                    "category": detail.get("category", ""),
+                    "result":   detail.get("result") or "",
+                })
+            # category 기준 정렬: malicious → suspicious →나머지
+            _order = {"malicious": 0, "suspicious": 1}
+            engines.sort(key=lambda x: (_order.get(x["category"], 2), x["engine"].lower()))
             return {
                 "positives": positives,
                 "total":     total,
                 "link":      f"https://www.virustotal.com/gui/file/{sha256}",
                 "family":    attrs.get("popular_threat_classification", {}).get("suggested_threat_label", ""),
+                "engines":   engines,
             }
         elif r.status_code == 404:
             return {"error": "not_found", "message": "VT에 해당 해시 없음"}

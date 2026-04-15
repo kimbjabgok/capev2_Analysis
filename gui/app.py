@@ -78,6 +78,7 @@ class App(tk.Tk):
         self.all_sigs     = []
         self.report_path  = None
         self._ai_results  = {}
+        self._vt_engines  = []
         self._loading     = False
         self._loading_dots = 0
 
@@ -334,7 +335,9 @@ class App(tk.Tk):
             w.destroy()
         try:
             inner = scrollable(f)
-            tabs.build_overview(inner, parser, self.config_data)
+            def _on_vt_done(engines):
+                self._vt_engines = engines
+            tabs.build_overview(inner, parser, self.config_data, vt_done_cb=_on_vt_done)
         except Exception as e:
             import traceback
             errors.append(f"[Overview] {e}\n{traceback.format_exc()}")
@@ -388,7 +391,7 @@ class App(tk.Tk):
             ai_text = "\n\n".join(
                 f"### {p}\n{t}" for p, t in self._ai_results.items()
             )
-            html_str = export.generate_html(self.parser, self.all_sigs, ai_text)
+            html_str = export.generate_html(self.parser, self.all_sigs, ai_text, self._vt_engines)
             with open(path, "w", encoding="utf-8") as f:
                 f.write(html_str)
             webbrowser.open(f"file:///{os.path.abspath(path)}")
