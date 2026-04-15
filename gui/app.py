@@ -240,8 +240,6 @@ class App(tk.Tk):
                 data   = load_report(path)
                 parser = ReportParser(data)
 
-                yara_results = analysis.scan_report_payloads(data)
-
                 wn = analysis.load_filter()
 
                 parser.set_whitenoise_filter(wn)
@@ -256,9 +254,8 @@ class App(tk.Tk):
                 self.parser      = parser
                 self.all_sigs    = all_sigs
                 self._raw_data   = data
-                self._yara_res   = yara_results
 
-                self.after(0, lambda: self._populate_tabs(parser, all_sigs, yara_results))
+                self.after(0, lambda: self._populate_tabs(parser, all_sigs))
             except Exception as e:
                 self.after(0, lambda: messagebox.showerror("오류", str(e)))
                 self.after(0, lambda: self._set_status("로드 실패"))
@@ -284,7 +281,7 @@ class App(tk.Tk):
         self.loading_label.config(text="")
 
     # ── 탭 데이터 채우기 ─────────────────────────────────────────
-    def _populate_tabs(self, parser: ReportParser, all_sigs: list, yara_results: list):
+    def _populate_tabs(self, parser: ReportParser, all_sigs: list):
         self._stop_loading()
 
         name = Path(self.report_path).name
@@ -355,7 +352,7 @@ class App(tk.Tk):
         api_calls = analysis.filter_api_calls(parser.get_api_calls(), wn)
         safe_build("Behavior", tabs.build_behavior, self.frames["Behavior"], api_calls)
 
-        safe_build("CAPE", tabs.build_cape, self.frames["CAPE"], parser, yara_results)
+        safe_build("CAPE", tabs.build_cape, self.frames["CAPE"], parser)
 
         self._ai_results = {}
         def _store_ai(provider, text):

@@ -529,7 +529,7 @@ def build_network(parent: ttk.Frame, parser):
 
 
 # ── CAPE ──────────────────────────────────────────────────────
-def build_cape(parent: ttk.Frame, parser, yara_results: list):
+def build_cape(parent: ttk.Frame, parser):
     for w in parent.winfo_children():
         w.destroy()
 
@@ -546,23 +546,18 @@ def build_cape(parent: ttk.Frame, parser, yara_results: list):
     tk.Label(parent, text=f"CAPE Payloads — {len(payloads)}개",
              bg=BG, fg=ACCENT, font=FONT_TITLE).pack(anchor="w", padx=12, pady=8)
 
-    cols = ["SHA256", "Type", "Size", "YARA Hit", "Config?"]
+    cols = ["SHA256", "Type", "Size", "Config?"]
     tv = scrolled_treeview(parent, cols)
-    tv.column("SHA256",   width=280, minwidth=120)
-    tv.column("Type",     width=150, minwidth=80)
-    tv.column("Size",     width=80,  minwidth=50)
-    tv.column("YARA Hit", width=200, minwidth=80)
-    tv.column("Config?",  width=60,  minwidth=40)
-
-    yara_map = {r["sha256"]: r["matches"] for r in yara_results}
+    tv.column("SHA256",  width=280, minwidth=120)
+    tv.column("Type",    width=150, minwidth=80)
+    tv.column("Size",    width=80,  minwidth=50)
+    tv.column("Config?", width=60,  minwidth=40)
 
     for p in payloads:
-        sha      = p.get("sha256", "")
-        yara_hit = ", ".join(m["rule"] for m in yara_map.get(sha, []))
-        has_cfg  = "Yes" if p.get("cape_config") else "No"
+        has_cfg = "Yes" if p.get("cape_config") else "No"
         tv.insert("", "end", values=(
-            sha, p.get("cape_type", p.get("type", "")),
-            p.get("size", ""), yara_hit, has_cfg,
+            p.get("sha256", ""), p.get("cape_type", p.get("type", "")),
+            p.get("size", ""), has_cfg,
         ))
 
     # 선택한 페이로드 해시 (클릭 복사)
