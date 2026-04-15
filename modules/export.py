@@ -4,6 +4,7 @@
 # html_export
 # ══════════════════════════════════════════════════════════════
 import html
+import json
 from datetime import datetime
 
 TECHNIQUE_TACTICS = {
@@ -123,13 +124,23 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     </a>
   </li>
   <li class="nav-item">
+    <a class="nav-link" id="tab-attack" data-bs-toggle="tab" href="#pane-attack" role="tab">
+      <i class="fas fa-crosshairs me-1"></i>ATT&amp;CK
+    </a>
+  </li>
+  <li class="nav-item">
     <a class="nav-link" id="tab-network" data-bs-toggle="tab" href="#pane-network" role="tab">
       <i class="fas fa-network-wired me-1"></i>Network
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="tab-attack" data-bs-toggle="tab" href="#pane-attack" role="tab">
-      <i class="fas fa-crosshairs me-1"></i>ATT&amp;CK
+    <a class="nav-link" id="tab-behavior" data-bs-toggle="tab" href="#pane-behavior" role="tab">
+      <i class="fas fa-microchip me-1"></i>Behavior
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="tab-cape" data-bs-toggle="tab" href="#pane-cape" role="tab">
+      <i class="fas fa-box-open me-1"></i>CAPE
     </a>
   </li>
   <li class="nav-item">
@@ -324,7 +335,6 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     _tls    = parser.get_tls()
     _ssh    = parser.get_ssh()
     _nfiles = parser.get_network_files()
-    _reg    = parser.get_host_iocs()["registry"]
     _hosts  = parser.get_hosts()
     _tcp    = parser.get_tcp()
     _udp    = parser.get_udp()
@@ -379,7 +389,6 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
         [(f.get("path", f.get("filename", "")), f.get("sha256", ""), f.get("uri", ""))
          for f in _nfiles]
     )
-    reg_html = _ntable(["Registry Key"], [(_e(r),) for r in _reg])
     hosts_html = _ntable(
         ["IP", "Country", "Ports", "Process"],
         [(h.get("ip", ""), h.get("country_name", ""),
@@ -418,8 +427,6 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     <i class="fas fa-terminal me-1"></i>SSH <span class="badge bg-secondary">{len(_ssh)}</span></a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-files">
     <i class="fas fa-file me-1"></i>Files <span class="badge bg-secondary">{len(_nfiles)}</span></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-reg">
-    <i class="fas fa-key me-1"></i>Registry <span class="badge bg-secondary">{len(_reg)}</span></a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-hosts">
     <i class="fas fa-server me-1"></i>Hosts <span class="badge bg-secondary">{len(_hosts)}</span></a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#net-tcp">
@@ -436,7 +443,6 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
   <div class="tab-pane fade" id="net-tls">{tls_html}</div>
   <div class="tab-pane fade" id="net-ssh">{ssh_html}</div>
   <div class="tab-pane fade" id="net-files">{nfiles_html}</div>
-  <div class="tab-pane fade" id="net-reg">{reg_html}</div>
   <div class="tab-pane fade" id="net-hosts">{hosts_html}</div>
   <div class="tab-pane fade" id="net-tcp">{tcp_html}</div>
   <div class="tab-pane fade" id="net-udp">{udp_html}</div>
@@ -475,6 +481,75 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
         ttp_table = '<p class="text-muted fst-italic">ATT&CK TTP 없음</p>'
 
     pane_attack = ttp_table
+
+    # ── Behavior ──────────────────────────────────────────────
+    api_calls  = parser.get_api_calls(max_per_process=500)
+    host_iocs  = parser.get_host_iocs()
+
+    if api_calls:
+        api_rows = [
+            (c["pid"], c["process"], c["api"], c["category"], c["args"][:200])
+            for c in api_calls[:3000]
+        ]
+        api_tbl = _ntable(["PID", "Process", "API", "Category", "Args"], api_rows)
+        trunc_note = (f'<p class="text-muted small">※ 최대 500개/프로세스, 총 {len(api_calls)}개 표시</p>'
+                      if len(api_calls) >= 500 else "")
+    else:
+        api_tbl = '<p class="text-muted fst-italic">동적 분석 데이터 없음</p>'
+        trunc_note = ""
+
+    reg_tbl   = _ntable(["Registry Key"], [(r,) for r in host_iocs["registry"]])
+    hfile_tbl = _ntable(["File Path"],    [(f,) for f in host_iocs["files"]])
+    mutex_tbl = _ntable(["Mutex"],        [(m,) for m in host_iocs["mutexes"]])
+
+    pane_behavior = f"""
+<h6 class="text-accent mb-2"><i class="fas fa-list me-1"></i>API Calls</h6>
+{trunc_note}
+{api_tbl}
+<div class="row mt-4">
+  <div class="col-md-4">
+    <h6 class="text-warning"><i class="fas fa-key me-1"></i>Registry <span class="badge bg-secondary">{len(host_iocs["registry"])}</span></h6>
+    {reg_tbl}
+  </div>
+  <div class="col-md-4">
+    <h6 class="text-info"><i class="fas fa-file me-1"></i>Files <span class="badge bg-secondary">{len(host_iocs["files"])}</span></h6>
+    {hfile_tbl}
+  </div>
+  <div class="col-md-4">
+    <h6 class="text-secondary"><i class="fas fa-lock me-1"></i>Mutexes <span class="badge bg-secondary">{len(host_iocs["mutexes"])}</span></h6>
+    {mutex_tbl}
+  </div>
+</div>"""
+
+    # ── CAPE ──────────────────────────────────────────────────
+    payloads = parser.get_cape_payloads()
+    configs  = parser.get_cape_configs()
+
+    if payloads:
+        payload_rows = [
+            (p.get("sha256", ""), p.get("cape_type", p.get("type", "")),
+             p.get("size", ""), "Yes" if p.get("cape_config") else "No")
+            for p in payloads
+        ]
+        payload_tbl = _ntable(["SHA256", "Type", "Size", "Config?"], payload_rows)
+    else:
+        payload_tbl = '<p class="text-muted fst-italic">추출된 페이로드 없음</p>'
+
+    if configs:
+        cfg_blocks = "".join(
+            f'<h6 class="text-warning mt-3">[{_e(c["family"])}] {_e(c["sha256"][:16])}…</h6>'
+            f'<pre class="small">{_e(json.dumps(c["config"], ensure_ascii=False, indent=2))}</pre>'
+            for c in configs
+        )
+    else:
+        cfg_blocks = '<p class="text-muted fst-italic">추출된 악성코드 설정값 없음</p>'
+
+    pane_cape = f"""
+<h6 class="text-accent mb-2"><i class="fas fa-box-open me-1"></i>Payloads <span class="badge bg-secondary">{len(payloads)}</span></h6>
+{payload_tbl}
+<hr>
+<h6 class="text-warning mt-3"><i class="fas fa-cog me-1"></i>Malware Configs</h6>
+{cfg_blocks}"""
 
     if ai_text:
         ai_html = ""
@@ -524,11 +599,17 @@ def generate_html(parser, all_sigs: list, ai_text: str = "") -> str:
     <div class="tab-pane fade" id="pane-sigs" role="tabpanel">
       {pane_sigs}
     </div>
+    <div class="tab-pane fade" id="pane-attack" role="tabpanel">
+      {pane_attack}
+    </div>
     <div class="tab-pane fade" id="pane-network" role="tabpanel">
       {pane_network}
     </div>
-    <div class="tab-pane fade" id="pane-attack" role="tabpanel">
-      {pane_attack}
+    <div class="tab-pane fade" id="pane-behavior" role="tabpanel">
+      {pane_behavior}
+    </div>
+    <div class="tab-pane fade" id="pane-cape" role="tabpanel">
+      {pane_cape}
     </div>
     <div class="tab-pane fade" id="pane-ai" role="tabpanel">
       {pane_ai}
